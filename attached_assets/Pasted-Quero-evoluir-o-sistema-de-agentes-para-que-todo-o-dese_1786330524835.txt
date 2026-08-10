@@ -1,0 +1,1296 @@
+Quero evoluir o sistema de agentes para que todo o desenvolvimento de software siga obrigatoriamente uma abordagem de Spec-Driven Development baseada no OpenSpec e para que os agentes sejam especializados no desenvolvimento e revisão de aplicações Python.
+
+Existem dois repositórios de referência obrigatórios:
+
+REPOSITÓRIO DE CÓDIGO ALVO
+
+https://github.com/guilhermeallen/sensedia-backend-case
+
+REPOSITÓRIO DO OPENSPEC
+
+https://github.com/Fission-AI/OpenSpec/
+
+O agente deverá trabalhar principalmente sobre o backend:
+
+guilhermeallen/sensedia-backend-case
+
+e utilizar o OpenSpec como padrão de planejamento, especificação, implementação e validação.
+
+IMPORTANTE:
+
+Antes de alterar qualquer código do sistema de agentes:
+
+1. Analise a arquitetura atual do agente.
+2. Analise como OpenSpec está integrado hoje.
+3. Analise quais prompts, skills e instruções já existem.
+4. Analise o agent graph e reviewer graph.
+5. Analise como os repositórios GitHub são clonados/preparados.
+6. Analise como o sandbox é preparado.
+7. Analise como testes, lint, quality gates e code review são executados.
+8. Preserve implementações existentes que já atendam aos requisitos abaixo.
+9. Faça alterações incrementais.
+10. Não simule integrações: as capacidades descritas abaixo devem estar efetivamente disponíveis para o agente.
+
+==================================================
+1. OPENSPEC COMO PADRÃO OBRIGATÓRIO
+==================================================
+
+Todo desenvolvimento realizado pelo agente deve seguir o padrão OpenSpec.
+
+Fonte oficial:
+
+https://github.com/Fission-AI/OpenSpec/
+
+Não criar uma implementação própria incompatível com OpenSpec.
+
+Utilizar o padrão atual disponibilizado pelo projeto OpenSpec.
+
+O OpenSpec atual utiliza o workflow OPSX e o schema spec-driven.
+
+O fluxo deve trabalhar com os artefatos:
+
+proposal
+specs
+design
+tasks
+
+Antes de qualquer implementação significativa, deve existir uma especificação OpenSpec correspondente.
+
+A regra é:
+
+Jira
+→ analisar requisito
+→ analisar código
+→ criar/atualizar OpenSpec
+→ revisar OpenSpec
+→ aprovação humana
+→ implementar
+→ verificar implementação contra OpenSpec
+→ code review
+→ archive OpenSpec
+
+Não permitir que o agente pule diretamente:
+
+Jira
+→ código
+
+para mudanças que deveriam passar pelo fluxo normal.
+
+==================================================
+2. INSTALAÇÃO DAS SKILLS OFICIAIS DO OPENSPEC
+==================================================
+
+O repositório oficial OpenSpec já fornece skills para agentes.
+
+Investigue a integração oficial existente no repositório.
+
+Atualmente existem mecanismos como:
+
+npx skills add Fission-AI/OpenSpec
+
+e:
+
+npx openspec@latest init
+
+Não copie manualmente instruções antigas sem verificar o estado atual do OpenSpec.
+
+Precisamos garantir que as skills oficiais do OpenSpec estejam disponíveis para o agente.
+
+Implemente uma estratégia controlada para isso.
+
+Existem duas estratégias aceitáveis.
+
+ESTRATÉGIA A — VENDOR / IMPORT LOCAL
+
+Importar as skills oficiais do OpenSpec para o projeto do agente e mantê-las versionadas.
+
+Vantagens esperadas:
+
+- comportamento determinístico;
+- versão conhecida;
+- não depender do GitHub durante cada execução;
+- evitar mudanças inesperadas do upstream;
+- permitir auditoria.
+
+ESTRATÉGIA B — SINCRONIZAÇÃO CONTROLADA
+
+Permitir atualizar as skills através do repositório oficial OpenSpec.
+
+Nesse caso:
+
+- não consultar arbitrariamente o branch main em toda execução;
+- utilizar versão/tag/commit conhecido;
+- registrar qual versão está instalada;
+- permitir atualização explícita;
+- possuir fallback para a versão local.
+
+A preferência para produção é:
+
+skills locais versionadas
++
+mecanismo explícito de atualização
+
+e NÃO:
+
+baixar instruções novas do GitHub a cada run sem controle de versão.
+
+==================================================
+3. VERSIONAMENTO DO OPENSPEC
+==================================================
+
+Registrar no sistema qual versão das instruções/skills do OpenSpec está sendo utilizada.
+
+Pode ser:
+
+- versão do package;
+- tag;
+- commit SHA;
+- versão da skill bundle.
+
+Exemplo conceitual:
+
+openspec:
+  source: Fission-AI/OpenSpec
+  version: <version>
+  commit: <sha>
+
+O objetivo é permitir saber exatamente qual conjunto de instruções orientou determinado agente.
+
+Não deixar isso implícito.
+
+==================================================
+4. INICIALIZAÇÃO OPENSPEC NO REPOSITÓRIO PYTHON
+==================================================
+
+Quando o agente começar a trabalhar sobre:
+
+guilhermeallen/sensedia-backend-case
+
+deve verificar se o projeto já está preparado para OpenSpec.
+
+Se estiver:
+
+reutilizar a configuração existente.
+
+Se não estiver:
+
+preparar o projeto utilizando o mecanismo oficial compatível com:
+
+openspec init
+
+e criar a estrutura necessária.
+
+Não sobrescrever artefatos existentes arbitrariamente.
+
+==================================================
+5. CONFIGURAÇÃO OPENSPEC PARA ESTE PROJETO
+==================================================
+
+O projeto OpenSpec deve utilizar:
+
+schema: spec-driven
+
+Criar ou ajustar:
+
+openspec/config.yaml
+
+com contexto específico do backend Python.
+
+O contexto deve informar ao OpenSpec que o projeto é um backend Python baseado em:
+
+- Python 3;
+- FastAPI;
+- PostgreSQL;
+- SQLAlchemy;
+- Alembic;
+- Pydantic;
+- Uvicorn;
+- arquitetura em camadas.
+
+A arquitetura atual utiliza conceitos como:
+
+Routers
+Services
+Repositories
+Schemas
+
+O agente deve respeitar a arquitetura existente antes de propor novos padrões.
+
+O OpenSpec não deve sugerir uma nova arquitetura apenas por preferência do modelo.
+
+==================================================
+6. SDD — SPEC-DRIVEN DEVELOPMENT
+==================================================
+
+O fluxo obrigatório para uma mudança deve ser:
+
+EXPLORE
+      ↓
+PROPOSE
+      ↓
+proposal
+specs
+design
+tasks
+      ↓
+REVIEW DA SPEC
+      ↓
+APROVAÇÃO HUMANA
+      ↓
+APPLY
+      ↓
+IMPLEMENTAÇÃO
+      ↓
+VERIFY
+      ↓
+CODE REVIEW
+      ↓
+ARCHIVE
+
+Utilize as ações oficiais do OPSX sempre que forem adequadas:
+
+opsx:explore
+opsx:propose
+opsx:apply
+opsx:update
+opsx:verify
+opsx:archive
+
+Se o projeto utilizar o profile expandido, também podem existir:
+
+opsx:new
+opsx:continue
+opsx:ff
+opsx:bulk-archive
+opsx:onboard
+
+Não inventar comandos próprios quando houver uma ação OpenSpec equivalente.
+
+==================================================
+7. RELAÇÃO COM O WORKFLOW DO JIRA
+==================================================
+
+Integrar o OpenSpec ao workflow Jira que já está sendo implementado.
+
+BACKLOG
+
+O agente:
+
+- lê Jira;
+- analisa código;
+- cria branch;
+- executa análise;
+- produz OpenSpec.
+
+Antes de mover o card para:
+
+Em Revisão de Spec
+
+devem existir na branch os artefatos OpenSpec necessários.
+
+Exemplo:
+
+openspec/changes/<change>/
+    proposal.md
+    specs/
+    design.md
+    tasks.md
+
+O agente deve:
+
+- validar os artefatos;
+- fazer commit;
+- fazer push;
+- somente então mover para Em Revisão de Spec.
+
+==================================================
+8. AJUSTAR SPEC
+==================================================
+
+Quando o card entrar em:
+
+Ajustar Spec
+
+utilizar o fluxo de atualização do OpenSpec.
+
+Preferencialmente utilizar o comportamento correspondente a:
+
+opsx:update
+
+O agente deve:
+
+1. ler feedback do Jira;
+2. reler os artefatos atuais;
+3. reler o código quando necessário;
+4. atualizar proposal/specs/design/tasks de forma coerente;
+5. validar dependências entre os artefatos;
+6. executar revisão novamente;
+7. commit;
+8. push;
+9. voltar para Em Revisão de Spec.
+
+Não recriar uma change nova se ainda for a mesma intenção/scope da mudança.
+
+==================================================
+9. IMPLEMENTAÇÃO APÓS SPEC APROVADA
+==================================================
+
+Quando o Jira indicar:
+
+Spec Aprovada
+
+o agente deve utilizar a OpenSpec como contrato de implementação.
+
+Executar semanticamente o equivalente a:
+
+opsx:apply
+
+A implementação deve seguir:
+
+tasks.md
+
+e respeitar:
+
+proposal
+specs
+design
+
+O agente não deve tratar tasks.md como mera sugestão.
+
+Ele deve manter o estado das tasks atualizado conforme a implementação.
+
+==================================================
+10. VERIFY ANTES DE CODE REVIEW
+==================================================
+
+Depois da implementação, antes de considerar o trabalho pronto para revisão humana, executar uma etapa de verificação da implementação contra a OpenSpec.
+
+Utilizar o mecanismo equivalente a:
+
+opsx:verify
+
+quando disponível.
+
+Validar pelo menos:
+
+- requisitos implementados;
+- cenários da spec;
+- tasks concluídas;
+- aderência ao design;
+- divergências entre código e specification;
+- testes;
+- regressões relevantes.
+
+Se houver divergência:
+
+não avançar silenciosamente.
+
+Corrigir código ou atualizar a spec conforme a natureza da divergência.
+
+==================================================
+11. ARCHIVE
+==================================================
+
+Após Code Review Aprovado e antes de disponibilizar a PR para merge humano:
+
+executar o archive da OpenSpec.
+
+Utilizar o mecanismo oficial equivalente a:
+
+opsx:archive
+
+O archive deve fazer parte da própria branch/PR.
+
+Depois:
+
+- atualizar documentação necessária;
+- commit;
+- push;
+- executar checks finais;
+- mover Jira para Em Merge.
+
+==================================================
+12. O AGENTE DEVE SER ESPECIALISTA EM PYTHON
+==================================================
+
+O coding agent não deve funcionar como um agente genérico quando estiver trabalhando neste repositório.
+
+Ele deve possuir instruções/skills explícitas de engenharia Python.
+
+Adicionar uma camada de especialização Python ao agente.
+
+Essa camada deve ser utilizada durante:
+
+- análise;
+- design;
+- implementação;
+- testes;
+- debugging;
+- refactoring;
+- code review;
+- revisão de segurança;
+- revisão de performance.
+
+==================================================
+13. PYTHON PROJECT HARNESS / HARNESS ENGINEER
+==================================================
+
+Adicionar uma capacidade explícita de:
+
+Python Harness Engineer
+
+Esse agente/skill é responsável por entender e preparar corretamente o ambiente antes que o coding agent altere o código.
+
+Responsabilidades:
+
+1. Detectar versão do Python.
+2. Detectar gerenciador de dependências.
+3. Detectar requirements.txt / pyproject.toml / outras configurações.
+4. Criar/validar virtual environment ou sandbox.
+5. Instalar dependências.
+6. Verificar comandos de inicialização.
+7. Detectar framework.
+8. Detectar arquitetura do projeto.
+9. Detectar testes existentes.
+10. Detectar lint/formatter/type checker existentes.
+11. Detectar migrations.
+12. Detectar configuração do banco.
+13. Detectar variáveis de ambiente necessárias.
+14. Identificar comandos seguros para testes.
+15. Construir um conjunto reproduzível de comandos de validação.
+
+Para este repositório, o harness deve reconhecer pelo menos:
+
+Python
+FastAPI
+SQLAlchemy
+Alembic
+Pydantic
+PostgreSQL
+Uvicorn
+
+Não assumir que outro projeto Python terá exatamente a mesma stack.
+
+O harness deve detectar primeiro.
+
+==================================================
+14. O HARNESS DEVE RODAR ANTES DA ALTERAÇÃO
+==================================================
+
+Antes de implementar código:
+
+Python Harness Engineer
+        ↓
+inspeciona projeto
+        ↓
+prepara ambiente
+        ↓
+descobre quality gates
+        ↓
+produz contexto
+        ↓
+Coding Agent
+
+O coding agent não deve começar modificações relevantes sem conhecer:
+
+- como instalar;
+- como executar;
+- como testar;
+- como validar.
+
+==================================================
+15. SKILLS PYTHON
+==================================================
+
+Adicionar skills especializadas para Python.
+
+Se já existir no sistema uma biblioteca confiável de skills Python:
+
+reutilizar.
+
+Se não existir:
+
+criar skills locais, versionadas e explícitas.
+
+As capabilities mínimas devem cobrir:
+
+Python Engineering
+Python Testing
+Python Code Quality
+FastAPI Engineering
+Python Security Review
+Python Code Review
+Python Refactoring
+Python Harness Engineering
+
+Não criar dezenas de skills redundantes.
+
+Prefira poucas skills bem definidas e reutilizáveis.
+
+==================================================
+16. PYTHON ENGINEERING SKILL
+==================================================
+
+A skill principal de Python deve orientar o agente para:
+
+- código idiomático;
+- legibilidade;
+- baixo acoplamento;
+- alta coesão;
+- type hints;
+- tratamento adequado de exceptions;
+- context managers quando apropriado;
+- evitar estado global desnecessário;
+- dependency injection apropriada;
+- separação de responsabilidades;
+- funções e classes pequenas quando fizer sentido;
+- evitar abstrações prematuras;
+- compatibilidade com a versão Python do projeto;
+- respeitar padrões já existentes no repositório.
+
+Não aplicar "best practices" cegamente quando conflitarem com a arquitetura atual.
+
+==================================================
+17. FASTAPI SKILL
+==================================================
+
+Adicionar conhecimento específico de FastAPI.
+
+O agente deve saber revisar e implementar:
+
+- routers;
+- dependency injection;
+- request/response models;
+- Pydantic schemas;
+- status codes;
+- exception handlers;
+- async vs sync;
+- middleware;
+- validation;
+- OpenAPI;
+- lifecycle;
+- segurança de endpoints.
+
+Deve respeitar a separação atual entre:
+
+Routers
+Services
+Repositories
+Schemas.
+
+==================================================
+18. DATABASE SKILL
+==================================================
+
+Para alterações envolvendo persistência, o agente deve considerar:
+
+SQLAlchemy
+Alembic
+PostgreSQL
+
+Validar:
+
+- sessions;
+- transactions;
+- rollback;
+- queries;
+- índices quando relevantes;
+- migrations;
+- constraints;
+- integridade;
+- N+1;
+- concorrência quando aplicável.
+
+Mudança de schema deve possuir migration adequada.
+
+==================================================
+19. PYTHON TESTING SKILL
+==================================================
+
+Adicionar capacidade explícita de testes Python.
+
+O agente deve primeiro descobrir a estrutura de testes existente.
+
+Se pytest estiver presente:
+
+usar pytest.
+
+Caso outro framework esteja configurado:
+
+respeitar a configuração existente.
+
+Quando a mudança exigir novos testes:
+
+adicioná-los.
+
+Cobrir quando apropriado:
+
+- happy path;
+- validation;
+- errors;
+- edge cases;
+- services;
+- repositories;
+- endpoints;
+- regressões.
+
+Não exigir cobertura artificial apenas para aumentar número de linhas cobertas.
+
+==================================================
+20. QUALITY GATES
+==================================================
+
+Antes de uma mudança ser considerada pronta:
+
+executar os quality gates existentes no projeto.
+
+Descobrir primeiro se o projeto utiliza:
+
+ruff
+black
+isort
+mypy
+pyright
+flake8
+pylint
+pytest
+coverage
+bandit
+ou ferramentas equivalentes.
+
+Não instalar automaticamente todas essas ferramentas.
+
+PRIMEIRO:
+
+detectar configuração existente.
+
+DEPOIS:
+
+utilizá-la.
+
+Se não existir nenhum quality gate, propor/implementar um conjunto mínimo compatível com o projeto, sem adicionar complexidade excessiva.
+
+==================================================
+21. BASELINE DE QUALIDADE
+==================================================
+
+Caso o projeto não possua nenhuma ferramenta de qualidade configurada, avaliar a adoção incremental de um baseline Python moderno.
+
+Uma possibilidade é:
+
+ruff
+pytest
+
+e, quando apropriado:
+
+mypy ou pyright
+
+Mas a decisão deve considerar o estado real do projeto.
+
+Não adicionar ferramentas simplesmente porque estão listadas neste prompt.
+
+Explique a escolha no relatório final.
+
+==================================================
+22. PYTHON CODE REVIEW AGENT
+==================================================
+
+O reviewer graph deve possuir uma especialização Python independente do coding agent.
+
+Ele deve revisar o diff da PR usando conhecimento específico da stack.
+
+A análise deve considerar:
+
+CORREÇÃO
+
+- bugs;
+- edge cases;
+- exceptions;
+- concorrência;
+- fluxo de dados.
+
+PYTHON
+
+- idiomatic Python;
+- typing;
+- mutabilidade;
+- generators;
+- context managers;
+- async;
+- resource management.
+
+FASTAPI
+
+- request validation;
+- response models;
+- status codes;
+- dependencies;
+- async/sync;
+- exception handling.
+
+DATABASE
+
+- queries;
+- transactions;
+- migrations;
+- integridade;
+- performance.
+
+SECURITY
+
+- injection;
+- secrets;
+- autenticação;
+- autorização;
+- validação de entrada;
+- exposição de dados.
+
+TESTES
+
+- qualidade;
+- regressões;
+- cenários ausentes.
+
+OPENSPEC
+
+- aderência à spec;
+- aderência ao design;
+- tasks implementadas.
+
+==================================================
+23. REVIEWER DEVE USAR O GITHUB
+==================================================
+
+O reviewer deve analisar a PR real.
+
+Deve utilizar:
+
+- diff;
+- arquivos alterados;
+- checks;
+- testes;
+- contexto relevante.
+
+Quando encontrar um problema concreto:
+
+publicar review/comment no GitHub.
+
+Preferir comentário inline quando existir uma linha específica responsável pelo problema.
+
+Evitar comentários genéricos sem ação concreta.
+
+==================================================
+24. SEPARAÇÃO ENTRE CODER E REVIEWER
+==================================================
+
+O Coding Agent e o Reviewer Agent devem possuir papéis diferentes.
+
+Coding Agent:
+
+implementa.
+
+Reviewer Agent:
+
+tenta encontrar problemas.
+
+Não reutilizar simplesmente a mesma conclusão do Coding Agent como review.
+
+O reviewer deve realizar nova análise.
+
+==================================================
+25. OPENSPEC + PYTHON
+==================================================
+
+O OpenSpec precisa receber contexto específico do projeto Python.
+
+O proposal/design/spec/tasks deve considerar a stack real.
+
+Por exemplo:
+
+se uma mudança exige novo endpoint:
+
+a spec deve considerar comportamento da API.
+
+O design pode considerar:
+
+Router
+→ Service
+→ Repository
+→ Database
+
+As tasks podem contemplar:
+
+schema
+router
+service
+repository
+migration
+tests
+
+quando aplicável.
+
+Não gerar automaticamente essa lista para toda alteração.
+
+Derivar do requisito real.
+
+==================================================
+26. NÃO INVENTAR ARQUITETURA
+==================================================
+
+Antes de gerar design:
+
+ler o repositório.
+
+O agente deve entender:
+
+- estrutura de diretórios;
+- abstrações existentes;
+- nomenclatura;
+- padrões;
+- dependências;
+- convenções.
+
+A OpenSpec deve descrever uma solução coerente com o sistema existente.
+
+==================================================
+27. BROWNFIELD FIRST
+==================================================
+
+Tratar:
+
+guilhermeallen/sensedia-backend-case
+
+como um projeto brownfield.
+
+O objetivo não é reescrever o projeto.
+
+O objetivo é:
+
+entender
+→ especificar
+→ alterar minimamente
+→ validar.
+
+Mudanças devem preservar compatibilidade sempre que possível.
+
+==================================================
+28. CONTEXTO DO REPOSITÓRIO
+==================================================
+
+Ao iniciar uma execução, coletar um contexto mínimo do repositório.
+
+Exemplo conceitual:
+
+repository:
+  name: guilhermeallen/sensedia-backend-case
+  language: Python
+  framework: FastAPI
+  database: PostgreSQL
+  orm: SQLAlchemy
+  migrations: Alembic
+  validation: Pydantic
+  architecture:
+    - Routers
+    - Services
+    - Repositories
+    - Schemas
+
+Esse contexto deve ser detectado, não simplesmente hardcoded.
+
+==================================================
+29. AGENTS / PROJECT INSTRUCTIONS
+==================================================
+
+Se o repositório possuir arquivos de instruções para agentes:
+
+AGENTS.md
+CLAUDE.md
+skills
+project instructions
+ou equivalentes,
+
+o agente deve lê-los antes de implementar.
+
+Ordem de prioridade conceitual:
+
+1. políticas do sistema;
+2. instruções específicas do projeto;
+3. OpenSpec;
+4. skills de linguagem/framework;
+5. defaults genéricos do agente.
+
+Não deixar uma skill Python sobrescrever uma regra explícita do repositório.
+
+==================================================
+30. SOURCE OF TRUTH DAS SKILLS
+==================================================
+
+Separar claramente:
+
+OpenSpec skills
+Python skills
+Project instructions
+
+OpenSpec skills:
+
+fonte oficial Fission-AI/OpenSpec.
+
+Python skills:
+
+skill pack interno/versionado ou fonte confiável explicitamente identificada.
+
+Project instructions:
+
+repositório trabalhado.
+
+Não misturar tudo em um único prompt gigante se a arquitetura atual permitir skills modulares.
+
+==================================================
+31. SKILL LOADING
+==================================================
+
+Não carregar todas as skills em todos os momentos se isso aumentar muito o contexto.
+
+Utilizar carregamento contextual.
+
+Exemplo:
+
+planejamento
+→ OpenSpec + architecture + Python
+
+implementação FastAPI
+→ Python + FastAPI + testing
+
+alteração database
+→ Python + SQLAlchemy/Alembic
+
+review
+→ Python review + OpenSpec verify
+
+archive
+→ OpenSpec
+
+A implementação deve aproveitar o mecanismo de skills existente do agente, se houver.
+
+==================================================
+32. HARNESS OUTPUT
+==================================================
+
+O Python Harness Engineer deve produzir um resultado estruturado antes da implementação.
+
+Exemplo conceitual:
+
+Python Project Harness
+
+Python version:
+...
+
+Dependency installation:
+...
+
+Application command:
+...
+
+Test command:
+...
+
+Lint command:
+...
+
+Type check:
+...
+
+Migration command:
+...
+
+Framework:
+FastAPI
+
+Database:
+PostgreSQL
+
+ORM:
+SQLAlchemy
+
+Architecture:
+...
+
+Detected risks:
+...
+
+Esse contexto pode ser armazenado na thread para evitar redescoberta desnecessária.
+
+==================================================
+33. EXECUTION PLAN
+==================================================
+
+A execução de desenvolvimento deve ficar conceitualmente assim:
+
+JIRA
+  ↓
+Repository discovery
+  ↓
+PYTHON HARNESS ENGINEER
+  ↓
+OpenSpec Explore/Propose
+  ↓
+proposal/specs/design/tasks
+  ↓
+OpenSpec review
+  ↓
+commit/push OpenSpec
+  ↓
+HUMAN SPEC REVIEW
+  ↓
+OpenSpec Apply
+  ↓
+PYTHON CODING AGENT
+  ↓
+tests / lint / quality
+  ↓
+OpenSpec Verify
+  ↓
+PR
+  ↓
+PYTHON REVIEWER AGENT
+  ↓
+HUMAN CODE REVIEW
+  ↓
+OpenSpec Archive
+  ↓
+docs
+  ↓
+HUMAN MERGE
+  ↓
+Done
+
+==================================================
+34. BRANCH
+==================================================
+
+O mesmo branch deve acompanhar o ciclo:
+
+branch
+ ↓
+OpenSpec
+ ↓
+spec review
+ ↓
+implementation
+ ↓
+tests
+ ↓
+review fixes
+ ↓
+archive
+ ↓
+documentation
+ ↓
+merge
+
+Não criar uma branch nova entre spec e implementação.
+
+==================================================
+35. TESTES DO SISTEMA DE AGENTES
+==================================================
+
+Adicionar testes para garantir:
+
+1. OpenSpec está disponível.
+2. Skills oficiais podem ser carregadas.
+3. Versão do OpenSpec é conhecida.
+4. Projeto Python é detectado.
+5. Harness executa antes do coding agent.
+6. FastAPI é detectado neste repositório.
+7. OpenSpec é produzido antes do código.
+8. Spec é commitada antes de Em Revisão de Spec.
+9. Coding agent utiliza a spec aprovada.
+10. Tests/quality gates executam.
+11. Verify acontece antes de Code Review.
+12. Reviewer utiliza o diff real.
+13. Reviewer possui instruções Python.
+14. Ajustar Code lê feedback GitHub.
+15. Archive ocorre antes de Em Merge.
+16. Mesmo branch é utilizado durante o ciclo.
+17. Project instructions têm precedência adequada.
+18. OpenSpec update não destrói artefatos existentes.
+19. Falha em quality gate impede avanço automático.
+20. Falha de verify impede avanço automático.
+
+==================================================
+36. NÃO DEPENDER DA INTERNET EM CADA RUN
+==================================================
+
+O funcionamento básico do agente não deve exigir disponibilidade do GitHub:
+
+Fission-AI/OpenSpec
+
+durante todo run.
+
+Depois das skills OpenSpec serem instaladas/sincronizadas, deve existir uma cópia local confiável.
+
+GitHub pode ser utilizado para:
+
+- instalação;
+- atualização;
+- verificação de versão.
+
+Mas não deve ser necessário baixar novamente as instruções em toda execução.
+
+Isso garante:
+
+- estabilidade;
+- performance;
+- reprodutibilidade;
+- segurança.
+
+==================================================
+37. ATUALIZAÇÃO DO OPENSPEC
+==================================================
+
+Criar um mecanismo claro para atualizar OpenSpec posteriormente.
+
+Exemplo conceitual:
+
+OpenSpec version installed:
+1.x.x
+
+Check for updates
+
+Update OpenSpec skills
+
+Não é obrigatório criar UI agora.
+
+Mas a arquitetura deve permitir atualização futura sem alterações manuais espalhadas pelo código.
+
+==================================================
+38. SEGURANÇA DE SUPPLY CHAIN
+==================================================
+
+Como skills externas influenciam diretamente comportamento de agentes:
+
+não executar automaticamente conteúdo arbitrário vindo do branch main.
+
+Se houver sincronização externa:
+
+- pin de versão/commit;
+- validação;
+- log;
+- atualização explícita.
+
+Registrar a origem das skills.
+
+==================================================
+39. OBSERVABILIDADE
+==================================================
+
+Registrar eventos relevantes no Sensedia Agentic Workflow.
+
+Exemplos:
+
+harness: Python project detected
+harness: FastAPI detected
+openspec: version X loaded
+openspec: proposal generated
+openspec: verification passed
+quality: tests passed
+quality: lint passed
+reviewer: review completed
+openspec: archived
+
+Não registrar secrets.
+
+==================================================
+40. CRITÉRIOS DE ACEITE
+==================================================
+
+A implementação estará concluída quando:
+
+- OpenSpec oficial estiver integrado;
+- skills oficiais estiverem disponíveis ao agente;
+- versão utilizada estiver identificável;
+- schema spec-driven estiver sendo utilizado;
+- proposal/specs/design/tasks fizerem parte do ciclo;
+- o agente não implementar antes da aprovação da spec;
+- o projeto Python for detectado pelo harness;
+- o harness preparar corretamente o ambiente;
+- o agente possuir especialização Python;
+- FastAPI/SQLAlchemy/Alembic/Pydantic forem entendidos;
+- testes e quality gates forem executados;
+- OpenSpec verify acontecer antes do code review;
+- reviewer fizer revisão Python independente;
+- comentários de problemas forem enviados ao GitHub;
+- archive acontecer antes do merge;
+- o fluxo continuar integrado aos gates humanos do Jira.
+
+==================================================
+41. RELATÓRIO ANTES DA IMPLEMENTAÇÃO
+==================================================
+
+Antes de modificar o código, apresente um diagnóstico contendo:
+
+1. Como OpenSpec funciona hoje no agente.
+2. Se OpenSpec já está instalado.
+3. Qual versão.
+4. Se existem skills OpenSpec.
+5. Como essas skills são carregadas.
+6. Se existe suporte ao OPSX.
+7. Se existe suporte ao schema spec-driven.
+8. Quais skills Python existem hoje.
+9. Se existe harness Python.
+10. Como testes são executados.
+11. Como lint/type checking são executados.
+12. Como reviewer funciona.
+13. Como o repositório alvo é identificado.
+14. Quais gaps existem em relação a este prompt.
+
+Depois disso aplique os ajustes.
+
+==================================================
+42. RELATÓRIO FINAL
+==================================================
+
+Ao terminar, informe:
+
+1. Arquivos alterados.
+2. Como OpenSpec foi integrado.
+3. Se foi utilizado vendor local ou sincronização.
+4. Versão/commit do OpenSpec.
+5. Skills OpenSpec instaladas.
+6. Skills Python adicionadas.
+7. Como funciona o Python Harness Engineer.
+8. Como o projeto FastAPI é detectado.
+9. Quais quality gates foram configurados.
+10. Como o Coding Agent usa as skills.
+11. Como o Reviewer Agent usa as skills.
+12. Como OpenSpec Verify funciona.
+13. Como OpenSpec Archive funciona.
+14. Como GitHub review é publicado.
+15. Como a ordem Spec → Code → Verify → Review é garantida.
+16. Testes adicionados.
+17. Resultado dos testes.
+18. Riscos ou limitações restantes.
+
+REGRA FINAL:
+
+Não quero somente prompts dizendo que o agente é "especialista em Python".
+
+Quero capacidades reais e verificáveis no runtime.
+
+Também não quero uma imitação do OpenSpec.
+
+Quero utilizar o OpenSpec oficial como padrão de SDD, com skills versionadas e workflow integrado ao ciclo Jira → GitHub → agente.
+
+A arquitetura final deve garantir:
+
+JIRA
+→ OPENSPEC
+→ HUMAN SPEC APPROVAL
+→ PYTHON IMPLEMENTATION
+→ QUALITY GATES
+→ OPENSPEC VERIFY
+→ AUTOMATED PYTHON CODE REVIEW
+→ HUMAN CODE REVIEW
+→ OPENSPEC ARCHIVE
+→ HUMAN MERGE
+→ DONE

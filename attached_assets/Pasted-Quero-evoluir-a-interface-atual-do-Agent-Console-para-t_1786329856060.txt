@@ -1,0 +1,1081 @@
+Quero evoluir a interface atual do Agent Console para transformá-la em um painel de operação e configuração do sistema de agentes.
+
+O nome oficial da aplicação passa a ser:
+
+SENSEDIA AGENTIC WORKFLOW
+
+Esta alteração envolve FRONTEND + BACKEND.
+
+IMPORTANTE:
+
+O frontend deve funcionar como interface administrativa das configurações reais utilizadas pelo backend/runtime.
+
+Não quero configurações apenas visuais, mantidas somente em JavaScript, localStorage ou estado da página.
+
+O BACKEND deve continuar sendo a fonte de verdade.
+
+Antes de alterar qualquer código:
+
+1. Analise a implementação atual do Agent Console.
+2. Identifique como frontend e backend estão estruturados.
+3. Identifique os arquivos responsáveis pelo layout atual.
+4. Identifique como hoje são configurados:
+   - JIRA_POLLER_SHADOW_MODE;
+   - intervalo do Jira Poller;
+   - modelo utilizado pelos agentes;
+   - effort do modelo;
+   - cron/scheduler utilizado para consultar o Jira.
+5. Identifique se essas configurações vêm de:
+   - variáveis de ambiente;
+   - constantes;
+   - arquivos;
+   - LangGraph;
+   - banco/armazenamento;
+   - configuração em memória.
+6. Identifique como o cron do Jira Poller é criado atualmente.
+7. Preserve a arquitetura existente sempre que possível.
+8. Faça alterações incrementais.
+9. Não reescreva componentes que já estejam funcionando sem necessidade.
+
+Não faça apenas um mock visual.
+
+Os controles apresentados no frontend precisam efetivamente alterar o comportamento do backend/runtime.
+
+
+==================================================
+1. IDENTIDADE DA APLICAÇÃO
+==================================================
+
+A aplicação não deve mais ser apresentada visualmente como:
+
+"Jira Agent Console"
+
+O nome oficial exibido passa a ser:
+
+"Sensedia Agentic Workflow"
+
+Esse nome deve ser utilizado de forma consistente no frontend, incluindo:
+
+- header principal;
+- identificação da aplicação;
+- título da página;
+- title do navegador, quando aplicável.
+
+Nomes técnicos internos como:
+
+agent-console
+
+diretórios, módulos, serviços, classes ou endpoints NÃO precisam ser renomeados apenas por causa da alteração de identidade visual.
+
+Evite refatorações desnecessárias no backend.
+
+
+==================================================
+2. LOGO DA SENSEDIA
+==================================================
+
+No canto superior esquerdo da interface deve aparecer o logo oficial da Sensedia.
+
+O header deve seguir conceitualmente esta estrutura:
+
+[LOGO SENSEDIA]  Sensedia Agentic Workflow
+
+Requisitos:
+
+1. Logo à esquerda.
+2. Nome imediatamente à direita.
+3. Logo e nome formam a identidade principal da aplicação.
+4. Manter o tema escuro atual.
+5. Manter proporção original do logo.
+6. Não distorcer o asset.
+7. Não deixar o logo excessivamente grande.
+8. Manter alinhamento vertical adequado.
+9. Manter responsividade.
+10. Não recriar ou desenhar uma versão aproximada do logo.
+
+Antes de adicionar um novo arquivo:
+
+- procure no projeto por assets oficiais existentes da Sensedia;
+- reutilize o asset existente se estiver disponível;
+- não crie cópias desnecessárias.
+
+Caso não exista um asset oficial no projeto:
+
+- prepare corretamente o componente/layout para receber o asset;
+- não utilize um logo inventado;
+- informe no relatório final que o asset oficial precisa ser disponibilizado.
+
+
+==================================================
+3. NOVO HEADER
+==================================================
+
+O topo da aplicação deve ficar conceitualmente assim:
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ [Sensedia Logo]  Sensedia Agentic Workflow                         │
+│                                                                      │
+│ ● Idle                                      Shadow Mode: ON          │
+│   Last tick 20s ago                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+
+O layout exato pode ser adaptado ao CSS e estrutura existentes.
+
+Não quero uma reconstrução completa da interface.
+
+Preserve a identidade visual atual, melhorando apenas organização, hierarquia e usabilidade.
+
+
+==================================================
+4. ÁREA DE CONFIGURAÇÃO DO AGENTE
+==================================================
+
+Adicionar uma área de configuração operacional.
+
+Ela deve permitir configurar:
+
+1. Shadow Mode;
+2. Modelo do agente;
+3. Effort;
+4. Intervalo de polling do Jira.
+
+Conceitualmente:
+
+Agent Configuration
+
+Shadow Mode
+[ ON / OFF ]
+
+Modelo
+[ Claude Haiku 4.5 ▼ ]
+
+Effort
+[ Low ▼ ]
+
+Verificar Jira a cada
+[ 1 minuto ▼ ]
+
+Os valores exibidos devem sempre ser os valores REAIS retornados pelo backend.
+
+
+==================================================
+5. SHADOW MODE
+==================================================
+
+Adicionar um controle visual:
+
+Shadow Mode
+[ ON / OFF ]
+
+Pode ser switch/toggle seguindo o design atual.
+
+O estado mostrado deve representar a configuração REAL utilizada pelo Jira Poller.
+
+Não manter um estado independente apenas no frontend.
+
+
+==================================================
+6. COMPORTAMENTO DO SHADOW MODE
+==================================================
+
+Quando:
+
+shadow_mode = true
+
+o sistema deve continuar monitorando normalmente o Jira.
+
+PERMITIDO:
+
+- consultar Jira;
+- detectar cards;
+- executar ticks;
+- identificar cards elegíveis;
+- atualizar observabilidade;
+- enviar eventos ao console;
+- registrar o que seria executado;
+- mostrar "would trigger" no execution log.
+
+Exemplo:
+
+[shadow] would trigger SSAI-88
+
+Porém NÃO pode executar nenhum efeito colateral.
+
+PROIBIDO em Shadow Mode:
+
+- criar thread de execução;
+- executar dispatch_agent_run;
+- iniciar agent graph;
+- chamar LLM;
+- mover card Jira;
+- comentar no Jira como parte de uma execução;
+- criar branch;
+- fazer commit;
+- fazer push;
+- alterar GitHub;
+- criar Pull Request;
+- modificar Pull Request;
+- executar implementação;
+- executar reviewer;
+- retomar execução real;
+- realizar qualquer ação do workflow.
+
+Ou seja:
+
+Shadow Mode ON
+=
+monitoramento somente.
+
+Shadow Mode OFF
+=
+execução real habilitada.
+
+A garantia de segurança deve existir no BACKEND.
+
+Ela não pode depender do botão do frontend.
+
+
+==================================================
+7. INDICAÇÃO VISUAL DO SHADOW MODE
+==================================================
+
+Shadow Mode é uma configuração crítica e deve ficar visualmente evidente.
+
+Quando ativo, mostrar próximo ao status geral algo como:
+
+SHADOW MODE
+
+Monitoring only — agents will not execute
+
+Quando desligado, pode mostrar algo equivalente a:
+
+LIVE EXECUTION
+
+Agents can execute workflows
+
+Manter o padrão visual atual.
+
+Não precisa utilizar alertas exagerados, mas deve ser impossível confundir Shadow Mode com execução real.
+
+
+==================================================
+8. ALTERAÇÃO DO SHADOW MODE
+==================================================
+
+Ao alterar o switch:
+
+Frontend
+    ↓
+API backend
+    ↓
+validação
+    ↓
+configuração operacional
+    ↓
+Jira Poller
+
+Exemplo:
+
+ON → OFF
+
+deve efetivamente alterar o comportamento do poller.
+
+Antes de implementar uma nova lógica, verifique a implementação existente de:
+
+JIRA_POLLER_SHADOW_MODE
+
+Reutilize-a.
+
+Não crie duas implementações paralelas de Shadow Mode.
+
+
+==================================================
+9. SELEÇÃO DE MODELO
+==================================================
+
+Adicionar:
+
+Modelo do agente
+[ modelo ▼ ]
+
+A lista de modelos deve vir do backend.
+
+Não manter uma lista exclusiva dentro do HTML/JavaScript.
+
+Primeiro verifique quais modelos são realmente suportados atualmente.
+
+Existem referências no projeto a modelos como:
+
+anthropic:claude-haiku-4-5-20251001
+anthropic:claude-sonnet-5
+
+Confirme isso no código.
+
+Se esses forem os modelos disponíveis, podem aparecer com labels amigáveis:
+
+Claude Haiku 4.5
+Claude Sonnet 5
+
+Porém o valor utilizado pelo backend deve continuar sendo o identificador técnico.
+
+Exemplo:
+
+{
+    "label": "Claude Sonnet 5",
+    "value": "anthropic:claude-sonnet-5"
+}
+
+
+==================================================
+10. ALTERAÇÃO DE MODELO
+==================================================
+
+O fluxo deve ser:
+
+Frontend
+    ↓
+API
+    ↓
+Backend valida
+    ↓
+Backend persiste/aplica
+    ↓
+Próximos runs utilizam novo modelo
+
+Não alterar silenciosamente um run que já esteja em execução.
+
+A mudança deve valer para:
+
+- novos runs;
+- próximas retomadas;
+
+conforme a estratégia de instanciação de modelo existente no projeto.
+
+Analise a implementação atual antes de definir exatamente em que momento a configuração é carregada.
+
+Não espalhar configuração de modelo por diferentes arquivos sem necessidade.
+
+Deve existir uma fonte de verdade.
+
+
+==================================================
+11. EFFORT
+==================================================
+
+Adicionar:
+
+Effort
+[ Low ▼ ]
+
+O backend deve informar quais níveis de effort são válidos.
+
+Exemplos possíveis:
+
+low
+medium
+high
+
+Mas NÃO assuma esses valores sem verificar o suporte real da implementação.
+
+Não invente níveis não suportados.
+
+Se modelos diferentes tiverem diferentes possibilidades de effort, o backend deve controlar a validação.
+
+
+==================================================
+12. RELAÇÃO MODEL × EFFORT
+==================================================
+
+O backend deve validar combinações.
+
+Exemplo conceitual:
+
+{
+    "model": "anthropic:claude-sonnet-5",
+    "effort": "medium"
+}
+
+Caso uma combinação não seja suportada:
+
+- backend rejeita;
+- frontend mostra erro;
+- configuração anterior permanece ativa.
+
+Não permitir que o frontend mostre uma configuração que o runtime não aceitou.
+
+
+==================================================
+13. INTERVALO DE POLLING DO JIRA
+==================================================
+
+Adicionar:
+
+Verificar Jira a cada
+[ 1 minuto ▼ ]
+
+Valores disponíveis:
+
+1 minuto
+5 minutos
+10 minutos
+30 minutos
+60 minutos
+
+Internamente podem ser:
+
+1
+5
+10
+30
+60
+
+ou:
+
+60
+300
+600
+1800
+3600 segundos
+
+Utilize a representação mais adequada à arquitetura existente.
+
+
+==================================================
+14. O INTERVALO DEVE CONTROLAR O SCHEDULER REAL
+==================================================
+
+Hoje o Jira é consultado aproximadamente uma vez por minuto.
+
+Quando o usuário selecionar, por exemplo:
+
+10 minutos
+
+o fluxo deve realmente ser:
+
+Frontend
+    ↓
+Backend
+    ↓
+polling_interval = 10
+    ↓
+scheduler real atualizado
+    ↓
+Jira passa a ser consultado a cada 10 minutos
+
+Não quero:
+
+Frontend
+→ altera texto
+→ scheduler continua em 1 minuto
+
+A configuração precisa controlar o cron real.
+
+
+==================================================
+15. RECONFIGURAÇÃO SEGURA DO CRON
+==================================================
+
+Analise como o LangGraph cron/scheduler é configurado atualmente.
+
+Caso alterar o intervalo exija recriar o cron, faça isso de forma segura.
+
+Nunca deixar:
+
+cron antigo
++
+cron novo
+
+executando simultaneamente.
+
+Exemplo de problema que deve ser evitado:
+
+início:
+1 minuto
+
+usuário muda:
+5 minutos
+
+usuário muda:
+10 minutos
+
+resultado ERRADO:
+
+cron 1m
+cron 5m
+cron 10m
+
+resultado CORRETO:
+
+somente cron 10m
+
+Deve existir somente um scheduler ativo responsável pelo Jira Poller.
+
+
+==================================================
+16. BACKEND COMO SOURCE OF TRUTH
+==================================================
+
+As seguintes configurações devem ser controladas pelo backend:
+
+- shadow_mode;
+- model;
+- effort;
+- polling_interval.
+
+Fluxo esperado:
+
+ENV/config defaults
+       ↓
+Backend configuration
+       ↓
+Runtime
+       ↓
+API
+       ↓
+Frontend
+
+O frontend apenas visualiza e modifica essa configuração através da API.
+
+
+==================================================
+17. PERSISTÊNCIA
+==================================================
+
+Primeiro verifique se já existe uma camada de configuração persistente.
+
+Se existir:
+
+reutilize.
+
+Se não existir:
+
+implemente uma solução simples e compatível com a arquitetura existente.
+
+As configurações devem sobreviver a:
+
+- refresh da página.
+
+Preferencialmente também devem sobreviver a:
+
+- restart do Agent Console;
+- restart do backend;
+
+se isso for compatível com a arquitetura atual.
+
+Variáveis de ambiente existentes podem continuar servindo como DEFAULT.
+
+Exemplo:
+
+ENV
+ ↓
+default
+ ↓
+configuração persistida
+ ↓
+runtime
+
+Uma configuração feita no console pode sobrescrever o default sem editar automaticamente o arquivo `.env`.
+
+Nunca modificar automaticamente secrets no `.env`.
+
+
+==================================================
+18. NÃO EXPOR SECRETS
+==================================================
+
+A API de configuração nunca deve retornar:
+
+- tokens Jira;
+- API keys;
+- secrets GitHub;
+- tokens Anthropic;
+- secrets LangGraph;
+- credenciais;
+- qualquer valor sensível.
+
+A API deve trabalhar somente com as configurações operacionais necessárias.
+
+
+==================================================
+19. API DE CONFIGURAÇÃO
+==================================================
+
+Crie ou adapte endpoints seguindo o padrão da aplicação.
+
+Uma possibilidade:
+
+GET /api/config
+
+Resposta conceitual:
+
+{
+    "shadow_mode": true,
+
+    "model": "anthropic:claude-haiku-4-5-20251001",
+
+    "effort": "low",
+
+    "polling_interval_minutes": 1,
+
+    "available_models": [
+        {
+            "label": "Claude Haiku 4.5",
+            "value": "anthropic:claude-haiku-4-5-20251001"
+        },
+        {
+            "label": "Claude Sonnet 5",
+            "value": "anthropic:claude-sonnet-5"
+        }
+    ],
+
+    "available_efforts": [
+        "low",
+        "medium",
+        "high"
+    ],
+
+    "available_polling_intervals": [
+        1,
+        5,
+        10,
+        30,
+        60
+    ]
+}
+
+Os valores são apenas conceituais.
+
+Use somente modelos/efforts realmente suportados.
+
+
+==================================================
+20. ALTERAÇÃO DA CONFIGURAÇÃO
+==================================================
+
+Pode ser utilizado, por exemplo:
+
+PUT /api/config
+
+Payload:
+
+{
+    "shadow_mode": false,
+    "model": "anthropic:claude-sonnet-5",
+    "effort": "medium",
+    "polling_interval_minutes": 10
+}
+
+Ou endpoints específicos, caso isso combine melhor com a arquitetura atual.
+
+O backend deve:
+
+1. receber;
+2. validar;
+3. rejeitar valores inválidos;
+4. persistir;
+5. aplicar ao runtime;
+6. atualizar scheduler quando necessário;
+7. retornar a configuração efetivamente aplicada.
+
+Nunca confie diretamente em valores enviados pelo browser.
+
+
+==================================================
+21. COMPORTAMENTO DO FRONTEND
+==================================================
+
+Ao carregar a página:
+
+Frontend
+    ↓
+GET configuração
+    ↓
+Backend
+    ↓
+renderizar valores reais
+
+Durante alteração:
+
+- mostrar saving/loading;
+- bloquear saves concorrentes quando necessário;
+- exibir confirmação;
+- exibir erro caso falhe.
+
+Se um save falhar:
+
+não deixar a interface mostrando a configuração nova como se tivesse sido aplicada.
+
+Recarregar ou restaurar o valor real do backend.
+
+
+==================================================
+22. ORGANIZAÇÃO VISUAL
+==================================================
+
+Preserve as áreas existentes:
+
+- status geral;
+- WORKING;
+- WAITING ON HUMAN;
+- QUEUED;
+- DEAD;
+- Queue;
+- Runs;
+- Execution Log.
+
+Adicionar a nova área de configuração sem comprometer o dashboard.
+
+Sugestão:
+
+┌──────────────────────────────────────────────────────────────┐
+│ [Sensedia] Sensedia Agentic Workflow                        │
+│                                                              │
+│ ● Idle                             SHADOW MODE               │
+│   Last tick 20s ago                Monitoring only           │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ Agent Configuration                                          │
+│                                                              │
+│ Shadow Mode       Modelo       Effort       Jira Polling     │
+│ [ ON ]            [Haiku ▼]    [Low ▼]      [1 minuto ▼]    │
+└──────────────────────────────────────────────────────────────┘
+
+┌─────────┐ ┌────────────────┐ ┌────────┐ ┌──────┐
+│ WORKING │ │WAITING ON HUMAN│ │ QUEUED │ │ DEAD │
+└─────────┘ └────────────────┘ └────────┘ └──────┘
+
+Queue                         Runs
+
+Execution Log
+
+Esse é apenas um desenho conceitual.
+
+Adapte ao frontend atual.
+
+
+==================================================
+23. EXECUTION LOG
+==================================================
+
+Preserve o log existente.
+
+Quando Shadow Mode estiver ativo:
+
+[shadow] would trigger SSAI-88
+
+Quando estiver em execução real, continuar exibindo eventos existentes como:
+
+launched
+resumed
+parked
+reviewing
+
+etc.
+
+
+==================================================
+24. LOG DE ALTERAÇÕES ADMINISTRATIVAS
+==================================================
+
+Quando uma configuração for alterada, registrar no execution log um evento administrativo.
+
+Exemplos:
+
+config: shadow mode enabled
+
+config: shadow mode disabled
+
+config: model changed from Claude Haiku 4.5 to Claude Sonnet 5
+
+config: effort changed from low to medium
+
+config: Jira polling interval changed from 1m to 10m
+
+Não registrar secrets.
+
+
+==================================================
+25. INTEGRAÇÃO REAL COM O RUNTIME
+==================================================
+
+Validar explicitamente:
+
+shadow_mode
+    ↓
+Jira Poller real
+
+polling_interval
+    ↓
+Scheduler real
+
+model
+    ↓
+Criação/retomada dos agents
+
+effort
+    ↓
+Configuração real das chamadas ao modelo
+
+A arquitetura desejada é:
+
+Sensedia Agentic Workflow UI
+          ↓
+Agent Console Backend/API
+          ↓
+Operational Configuration
+          ↓
+┌───────────────┬───────────────┐
+│ Jira Poller   │ Agent Runtime │
+│ Scheduler     │ LLM           │
+└───────────────┴───────────────┘
+
+Não implementar:
+
+UI
+↓
+variável JavaScript
+↓
+nenhum efeito no runtime
+
+
+==================================================
+26. NÃO QUEBRAR FUNCIONALIDADES EXISTENTES
+==================================================
+
+Preserve:
+
+- scheduler;
+- Jira Poller;
+- deterministic thread IDs;
+- idempotência;
+- durable execution;
+- parking/resume;
+- Agent Console events;
+- execution log;
+- métricas;
+- queue;
+- runs;
+- WORKING;
+- WAITING ON HUMAN;
+- QUEUED;
+- DEAD;
+- shadow mode já existente.
+
+Faça mudanças incrementais.
+
+
+==================================================
+27. SHADOW MODE É UMA BARREIRA DE SEGURANÇA
+==================================================
+
+Mesmo que o frontend tenha problemas, Shadow Mode deve continuar sendo aplicado pelo backend.
+
+Teste especificamente:
+
+shadow_mode=true
+
+Jira encontra:
+
+SSAI-88
+
+Resultado esperado:
+
+✓ card detectado
+✓ log gerado
+✓ observabilidade atualizada
+
+Resultado proibido:
+
+✗ thread criada
+✗ agent dispatch
+✗ LLM
+✗ Jira alterado
+✗ GitHub alterado
+
+
+==================================================
+28. TESTES DO BACKEND
+==================================================
+
+Adicionar ou atualizar testes para:
+
+1. GET da configuração.
+2. Alteração de Shadow Mode.
+3. Shadow ON impede execução.
+4. Shadow OFF permite fluxo normal.
+5. Alteração de modelo.
+6. Modelo inválido rejeitado.
+7. Alteração de effort.
+8. Effort inválido rejeitado.
+9. Combinação model/effort inválida rejeitada, caso aplicável.
+10. Alteração de polling para 1 minuto.
+11. Alteração para 5 minutos.
+12. Alteração para 10 minutos.
+13. Alteração para 30 minutos.
+14. Alteração para 60 minutos.
+15. Scheduler não cria crons duplicados.
+16. Configuração persistida é recarregada corretamente.
+17. API não retorna secrets.
+
+
+==================================================
+29. TESTES DO FRONTEND
+==================================================
+
+Validar:
+
+1. Nome "Sensedia Agentic Workflow".
+2. Logo da Sensedia.
+3. Estado inicial vindo do backend.
+4. Shadow Mode refletindo backend.
+5. Model dropdown vindo do backend.
+6. Effort vindo do backend.
+7. Polling interval vindo do backend.
+8. Loading durante alterações.
+9. Mensagem de sucesso.
+10. Tratamento de erro.
+11. Rollback visual quando save falha.
+12. Refresh mantém configuração real.
+13. Responsividade do header.
+14. Responsividade da área de configuração.
+
+
+==================================================
+30. CRITÉRIOS DE ACEITE
+==================================================
+
+A implementação será considerada concluída quando eu abrir a aplicação e encontrar:
+
+SENSEDIA AGENTIC WORKFLOW
+
+com:
+
+- logo oficial Sensedia no canto superior esquerdo;
+- nome "Sensedia Agentic Workflow" ao lado;
+- tema escuro preservado;
+- status operacional;
+- indicação clara de Shadow Mode;
+- configuração do agente;
+- métricas existentes;
+- Queue;
+- Runs;
+- Execution Log.
+
+E conseguir pela própria tela:
+
+1. ligar Shadow Mode;
+2. desligar Shadow Mode;
+3. selecionar modelo;
+4. selecionar effort;
+5. selecionar polling:
+   - 1;
+   - 5;
+   - 10;
+   - 30;
+   - 60 minutos.
+
+As alterações precisam efetivamente chegar ao backend/runtime.
+
+
+==================================================
+31. VALIDAÇÃO DE SHADOW MODE
+==================================================
+
+Com Shadow Mode ON:
+
+Jira Poller deve continuar monitorando.
+
+Se encontrar um card:
+
+[shadow] would trigger SSAI-88
+
+Mas:
+
+nenhum agente é executado.
+
+Com Shadow Mode OFF:
+
+o mesmo tipo de card elegível pode disparar o workflow normalmente.
+
+
+==================================================
+32. VALIDAÇÃO DO POLLING
+==================================================
+
+Se eu selecionar:
+
+10 minutos
+
+o sistema precisa comprovar que o scheduler real está configurado para 10 minutos.
+
+Não basta atualizar o frontend.
+
+Também não pode existir outro cron de 1 minuto continuando em paralelo.
+
+
+==================================================
+33. VALIDAÇÃO DO MODELO
+==================================================
+
+Se eu selecionar:
+
+Claude Sonnet 5
+
+e:
+
+Effort = medium
+
+uma nova execução deve utilizar exatamente essa configuração, caso ela seja suportada.
+
+O log ou diagnóstico do runtime deve permitir comprovar qual configuração foi utilizada sem expor credenciais.
+
+
+==================================================
+34. RELATÓRIO FINAL
+==================================================
+
+Antes de implementar, faça um breve diagnóstico informando:
+
+- como funciona hoje o frontend;
+- como funciona o backend;
+- de onde vem Shadow Mode;
+- de onde vem model;
+- de onde vem effort;
+- como o polling é configurado;
+- como o cron atual funciona;
+- onde o logo/branding atual está definido.
+
+Depois implemente os ajustes.
+
+Ao finalizar, informe:
+
+1. Quais arquivos foram alterados.
+2. Como ficou o novo header.
+3. Onde o logo da Sensedia foi obtido.
+4. Como a configuração funciona no frontend.
+5. Quais endpoints foram criados/alterados.
+6. Onde as configurações são persistidas.
+7. Como Shadow Mode é aplicado pelo poller.
+8. Como o scheduler é atualizado ao alterar o intervalo.
+9. Como foi evitada a criação de crons duplicados.
+10. Como model e effort chegam ao agente/LLM.
+11. Como funciona a validação model × effort.
+12. Quais eventos administrativos são registrados.
+13. Quais testes foram adicionados.
+14. Resultado dos testes.
+15. Se alguma alteração ainda depende de restart.
+16. Se existe algum ponto que não pôde ser configurado dinamicamente e por quê.
+
+IMPORTANTE:
+
+Não implemente apenas alterações visuais.
+
+Primeiro valide a arquitetura atual e depois faça a integração completa:
+
+FRONTEND
+→ BACKEND
+→ CONFIGURAÇÃO
+→ RUNTIME.
+
+O objetivo final é que a interface "Sensedia Agentic Workflow" seja realmente o painel operacional dos agentes, e não apenas um dashboard de observabilidade.

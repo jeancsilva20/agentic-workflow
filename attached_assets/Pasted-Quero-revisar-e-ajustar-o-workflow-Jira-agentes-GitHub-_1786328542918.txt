@@ -1,0 +1,477 @@
+Quero revisar e ajustar o workflow Jira → agentes → GitHub deste projeto.
+
+Antes de alterar qualquer código, faça uma análise do estado atual da implementação. Inspecione principalmente:
+
+- jira_poller e lógica de polling;
+- scheduler;
+- graph principal do agente;
+- reviewer graph;
+- lógica de criação e retomada de threads;
+- integração com Jira;
+- integração com GitHub;
+- prompts/instruções dos agentes;
+- lógica de OpenSpec;
+- movimentações automáticas de status no Jira;
+- tratamento de comentários do Jira;
+- tratamento de reviews/comentários do GitHub;
+- criação de branch, commits, push e Pull Request;
+- qualquer configuração, constante ou variável de ambiente relacionada aos status do Jira;
+- testes existentes relacionados a esse fluxo.
+
+Primeiro compare a implementação atual com o fluxo alvo descrito abaixo.
+
+Se o sistema já estiver aderente em algum ponto, preserve a implementação existente.
+
+Se houver divergências, implemente somente os ajustes necessários para que o comportamento final seja exatamente o fluxo definido abaixo.
+
+Não simplifique o fluxo e não remova as garantias atuais de idempotência, threads determinísticas, durable execution, parking/resume ou observabilidade.
+
+Também não altere o workflow administrativo do Jira. Considere que os status abaixo existirão no Jira e ajuste o sistema para trabalhar corretamente com eles.
+
+FLUXO ALVO
+
+Os status do Jira, em ordem lógica, são:
+
+1. BACKLOG / Pronto para Desenvolvimento
+2. Em Revisão de Spec
+3. Spec Aprovada
+4. Ajustar Spec
+5. In Progress / Em Desenvolvimento
+6. Em Code Review
+7. Code Review Aprovado
+8. Ajustar Code
+9. Em Merge
+10. Mergeado
+11. Done / Concluído
+
+É importante distinguir três tipos de estado:
+
+- estados em que o agente trabalha automaticamente;
+- estados que representam decisão humana;
+- estados que representam espera por uma ação humana.
+
+A movimentação do card deve fazer parte da automação. O humano deve mover o card apenas nos pontos explicitamente definidos como Human in the Loop.
+
+FLUXO 1 — BACKLOG → EM REVISÃO DE SPEC
+
+BACKLOG é o gatilho inicial.
+
+Quando um card elegível entrar em BACKLOG, o agente deve iniciar automaticamente, sem ação humana adicional.
+
+O agente deve:
+
+1. Ler o card do Jira.
+2. Obter título, descrição, critérios de aceitação, comentários e demais informações relevantes.
+3. Identificar o repositório backend associado ao projeto/card.
+4. Ler e analisar o código existente no GitHub.
+5. Preparar o ambiente de trabalho.
+6. Criar uma branch específica para o card.
+7. Gerar a OpenSpec com base no requisito e no código existente.
+8. Criar os artefatos necessários da OpenSpec, como proposal, design, specs e tasks, conforme a estrutura atualmente utilizada pelo projeto.
+9. Fazer auto-review da OpenSpec.
+10. Corrigir problemas encontrados no auto-review.
+11. Persistir a OpenSpec dentro da branch criada.
+12. Fazer commit das alterações da OpenSpec.
+13. Fazer push da branch para o GitHub.
+14. Garantir que a branch remota com a OpenSpec exista antes de continuar.
+15. Comentar no Jira, quando apropriado, informando que a especificação está disponível para revisão.
+16. Mover automaticamente o card para "Em Revisão de Spec".
+17. Marcar a thread como estacionada/aguardando decisão humana.
+18. Encerrar o run atual.
+
+Regra importante:
+
+A branch deve nascer durante a fase de especificação.
+
+A implementação posterior deverá continuar utilizando a MESMA branch.
+
+O card não pode ser movido para "Em Revisão de Spec" se a OpenSpec não tiver sido persistida, commitada e enviada para o GitHub com sucesso.
+
+FLUXO 2 — EM REVISÃO DE SPEC
+
+"Em Revisão de Spec" é um Human in the Loop.
+
+Enquanto o card permanecer nesse status, nenhum trabalho adicional de implementação deve começar.
+
+O humano poderá mover o card para:
+
+- Spec Aprovada
+- Ajustar Spec
+
+O poller deve detectar essas mudanças e retomar a MESMA thread correspondente ao card.
+
+Não criar uma nova thread.
+
+FLUXO 3 — AJUSTAR SPEC
+
+Quando o humano mover o card para "Ajustar Spec", o agente deve retomar automaticamente.
+
+O agente deve:
+
+1. Buscar os comentários recentes do Jira.
+2. Identificar se existe feedback humano relacionado ao ajuste da especificação.
+3. Se existir feedback, utilizá-lo como orientação prioritária.
+4. Se não existir comentário ou orientação específica, interpretar a movimentação para "Ajustar Spec" como uma rejeição da versão atual e realizar uma nova revisão crítica da especificação por raciocínio próprio.
+5. Reavaliar requisito, código existente, arquitetura e OpenSpec atual.
+6. Aplicar os ajustes necessários.
+7. Executar novamente o auto-review da OpenSpec.
+8. Atualizar os arquivos da OpenSpec na MESMA branch.
+9. Fazer novo commit.
+10. Fazer push.
+11. Comentar no Jira quando apropriado.
+12. Mover automaticamente o card novamente para "Em Revisão de Spec".
+13. Estacionar novamente a thread aguardando decisão humana.
+
+Esse ciclo pode acontecer mais de uma vez:
+
+Em Revisão de Spec
+→ Ajustar Spec
+→ agente revisa
+→ Em Revisão de Spec
+
+FLUXO 4 — SPEC APROVADA → EM DESENVOLVIMENTO
+
+Quando o humano mover o card para "Spec Aprovada", isso representa autorização para implementar.
+
+O poller deve detectar a mudança e retomar a mesma thread.
+
+Ao retomar, o agente deve:
+
+1. Confirmar que existe uma OpenSpec aprovada na branch.
+2. Utilizar a MESMA branch criada durante a especificação.
+3. Mover automaticamente o Jira de "Spec Aprovada" para "In Progress / Em Desenvolvimento".
+4. Iniciar a implementação das tasks da OpenSpec.
+
+"Em Desenvolvimento" é um estado de execução automática, não um Human in the Loop.
+
+FLUXO 5 — EM DESENVOLVIMENTO
+
+Durante "Em Desenvolvimento", o agente deve trabalhar autonomamente.
+
+Deve:
+
+1. Implementar as tasks da OpenSpec aprovada.
+2. Alterar o código na mesma branch.
+3. Executar testes relevantes.
+4. Executar validações necessárias.
+5. Fazer auto-review das alterações.
+6. Corrigir problemas encontrados.
+7. Fazer commits.
+8. Fazer push.
+9. Criar ou atualizar a Pull Request correspondente à branch.
+10. Garantir que a PR contenha o código atualizado e esteja em condições de revisão.
+11. Mover automaticamente o card para "Em Code Review".
+
+Não deve exigir que o humano mova manualmente o card de Em Desenvolvimento para Em Code Review.
+
+FLUXO 6 — EM CODE REVIEW
+
+"Em Code Review" possui duas etapas:
+
+1. revisão automática realizada pelo reviewer agent;
+2. decisão humana.
+
+Ao entrar em "Em Code Review", o reviewer agent deve executar automaticamente.
+
+O reviewer deve:
+
+1. Identificar a Pull Request associada ao card/branch.
+2. Analisar o diff da PR.
+3. Revisar tecnicamente a implementação.
+4. Verificar aderência à OpenSpec.
+5. Avaliar possíveis bugs, regressões, problemas arquiteturais, qualidade, segurança e testes, conforme as capacidades atuais do reviewer.
+6. Se encontrar problemas, publicar comentários de review diretamente no GitHub, preferencialmente associados à PR e aos trechos relevantes.
+7. Registrar claramente os pontos que precisam de correção.
+
+Depois que o reviewer terminar, o processo deve permanecer aguardando decisão humana em "Em Code Review".
+
+O humano poderá mover o card para:
+
+- Code Review Aprovado
+- Ajustar Code
+
+Não mover automaticamente para Code Review Aprovado.
+
+A aprovação final continua sendo humana.
+
+FLUXO 7 — AJUSTAR CODE
+
+Quando o humano mover o card para "Ajustar Code", o agente de implementação deve retomar a mesma thread.
+
+A fonte principal dos ajustes de código deve ser o GitHub.
+
+O agente deve:
+
+1. Identificar a PR associada.
+2. Buscar os reviews e comentários relevantes existentes no GitHub.
+3. Identificar os pontos pendentes de ajuste.
+4. Aplicar as correções solicitadas.
+5. Manter as alterações na mesma branch.
+6. Executar novamente testes e validações.
+7. Fazer auto-review.
+8. Fazer commit.
+9. Fazer push.
+10. Mover automaticamente o card novamente para "Em Code Review".
+
+Ao voltar para "Em Code Review", o reviewer agent deve executar novamente sobre a nova versão da PR.
+
+O ciclo pode acontecer várias vezes:
+
+Em Code Review
+→ Ajustar Code
+→ implementação/correção
+→ Em Code Review
+→ reviewer novamente
+
+FLUXO 8 — CODE REVIEW APROVADO
+
+Quando o humano mover o card para "Code Review Aprovado", isso significa autorização para preparar a entrega para merge.
+
+O agente deve retomar automaticamente.
+
+Ainda NÃO deve considerar a tarefa concluída e NÃO deve fazer o merge automaticamente.
+
+A partir daqui deve executar a preparação final pré-merge.
+
+FLUXO 9 — PREPARAÇÃO PARA MERGE
+
+Após Code Review Aprovado, o agente deve:
+
+1. Executar os checks finais necessários.
+2. Executar os testes finais.
+3. Confirmar que não existem ajustes de código pendentes.
+4. Fazer o archive da OpenSpec utilizando o mecanismo já existente no projeto.
+5. Revisar a documentação canônica relacionada à mudança.
+6. Identificar outras documentações do projeto que precisem ser atualizadas.
+7. Atualizar as documentações quando necessário.
+8. Fazer essas alterações na MESMA branch/PR sempre que fizerem parte da entrega.
+9. Fazer commit das alterações de documentação/OpenSpec.
+10. Fazer push.
+11. Confirmar novamente que a PR está consistente e pronta para merge.
+12. Garantir que os checks aplicáveis estejam concluídos.
+13. Mover automaticamente o card para "Em Merge".
+
+A atualização de documentação e o archive da OpenSpec devem acontecer ANTES do merge humano, e não depois.
+
+"Em Merge" significa:
+
+A automação terminou tudo que precisava fazer e a PR está pronta para um humano realizar o merge.
+
+FLUXO 10 — EM MERGE
+
+"Em Merge" é um Human in the Loop.
+
+O agente deve permanecer parado.
+
+O merge da Pull Request no GitHub é uma ação humana.
+
+O agente não deve fazer merge automaticamente.
+
+Depois de realizar o merge no GitHub, o humano move o Jira para "Mergeado".
+
+Regra semântica importante:
+
+O status "Mergeado" deve representar que o merge no GitHub já aconteceu.
+
+Não mover automaticamente o Jira de "Em Merge" para "Mergeado".
+
+FLUXO 11 — MERGEADO → DONE
+
+Quando o card for movido pelo humano para "Mergeado", o poller deve retomar a mesma thread.
+
+A fase pós-merge deve ser curta e não deve introduzir novas alterações funcionais na branch.
+
+O agente deve:
+
+1. Confirmar, quando possível, que a PR realmente está merged no GitHub.
+2. Registrar o resultado final da execução.
+3. Atualizar metadados e métricas existentes.
+4. Fazer comentário final no Jira com o resumo da conclusão, quando apropriado.
+5. Realizar somente tarefas administrativas de fechamento que não deveriam ter sido feitas antes do merge.
+6. Mover automaticamente o card para "Done / Concluído".
+
+O fluxo então termina.
+
+RESPONSABILIDADE POR STATUS
+
+Considere esta matriz como regra de negócio:
+
+BACKLOG
+- entrada/gatilho;
+- agente assume automaticamente.
+
+Em Revisão de Spec
+- agente coloca o card;
+- Human in the Loop.
+
+Spec Aprovada
+- humano coloca o card;
+- funciona como comando para o agente iniciar implementação.
+
+Ajustar Spec
+- humano coloca o card;
+- funciona como comando para o agente revisar novamente a OpenSpec.
+
+Em Desenvolvimento / In Progress
+- agente coloca o card;
+- execução autônoma.
+
+Em Code Review
+- agente coloca o card;
+- reviewer automático executa;
+- depois permanece como Human in the Loop.
+
+Code Review Aprovado
+- humano coloca o card;
+- autoriza preparação final para merge.
+
+Ajustar Code
+- humano coloca o card;
+- agente corrige com base principalmente nos reviews/comentários da PR no GitHub.
+
+Em Merge
+- agente coloca o card;
+- Human in the Loop;
+- significa "PR pronta para merge".
+
+Mergeado
+- humano coloca o card depois do merge real no GitHub;
+- dispara fechamento automático.
+
+Done
+- agente coloca o card;
+- processo encerrado.
+
+REGRAS DE THREAD E IDEMPOTÊNCIA
+
+Preserve e valide as seguintes garantias:
+
+1. Um card Jira deve possuir uma thread determinística.
+2. Pollings repetidos não podem criar execuções duplicadas.
+3. Uma retomada deve utilizar a mesma thread.
+4. Gates humanos devem estacionar a execução em vez de manter um run permanentemente bloqueado.
+5. A retomada ocorre quando o poller detectar mudança de status.
+6. Não criar uma thread nova para Ajustar Spec, Spec Aprovada, Ajustar Code, Code Review Aprovado ou Mergeado.
+7. Um tick repetido sobre um estado já processado não pode executar novamente a mesma transição.
+8. Atualizações de metadados da thread devem ser consistentes com o status em que ela está estacionada.
+
+VALIDAÇÃO DO POLLER
+
+Revise especialmente a lógica atual de polling dos gates.
+
+Não basta consultar apenas cards que continuam nas colunas onde foram estacionados.
+
+O sistema precisa conseguir detectar as decisões humanas:
+
+Em Revisão de Spec
+→ Spec Aprovada
+→ Ajustar Spec
+
+Em Code Review
+→ Code Review Aprovado
+→ Ajustar Code
+
+Em Merge
+→ Mergeado
+
+Valide se o JQL e a estratégia atual realmente conseguem encontrar esses cards depois da mudança de status.
+
+Se a implementação atual só consulta:
+
+- Em Revisão de Spec;
+- Em Code Review;
+- Em Merge;
+
+e depois tenta detectar mudança de status nesses mesmos resultados, isso deve ser corrigido, pois depois da movimentação o card deixa de pertencer à consulta anterior.
+
+Implemente uma estratégia robusta para localizar threads estacionadas e detectar seus novos estados sem criar polling excessivo ou perder idempotência.
+
+SHADOW MODE E PAUSE
+
+Preserve os mecanismos existentes de:
+
+- shadow mode;
+- poller paused.
+
+Não desative proteções automaticamente somente para validar o fluxo.
+
+A lógica deve funcionar corretamente tanto em shadow mode quanto em execução real.
+
+Em shadow mode, nenhuma alteração real de Jira, GitHub, thread de execução ou chamada de agente deve ocorrer além do comportamento observacional já previsto.
+
+TRANSIÇÕES DO JIRA
+
+Centralize, sempre que fizer sentido na arquitetura atual, os nomes/mapeamentos de status em uma configuração única para evitar strings duplicadas espalhadas pelo código.
+
+O sistema deve conhecer claramente os seguintes estados:
+
+BACKLOG
+Em Revisão de Spec
+Spec Aprovada
+Ajustar Spec
+In Progress
+Em Code Review
+Code Review Aprovado
+Ajustar Code
+Em Merge
+Mergeado
+Done
+
+Não assuma silenciosamente nomes diferentes.
+
+Se houver configuração existente para status/JQL, reutilize-a e ajuste-a.
+
+TRATAMENTO DE FALHAS
+
+Não mova o card para a próxima etapa se a operação obrigatória da etapa atual tiver falhado.
+
+Exemplos:
+
+- não mover para Em Revisão de Spec se commit/push da OpenSpec falhar;
+- não mover para Em Code Review se criação/atualização da PR falhar;
+- não mover para Em Merge se archive, documentação ou checks obrigatórios falharem;
+- não mover para Done se o estado de merge estiver inconsistente.
+
+Erros devem ser registrados de forma observável e, quando adequado, comentados no Jira sem gerar loops infinitos.
+
+VALIDAÇÃO FINAL
+
+Depois de implementar os ajustes:
+
+1. Execute os testes existentes.
+2. Crie ou atualize testes para as novas transições.
+3. Teste especialmente os loops:
+   - Ajustar Spec;
+   - Ajustar Code.
+4. Teste idempotência de polling.
+5. Teste retomada da mesma thread.
+6. Teste que reviewer executa toda vez que o card entra novamente em Em Code Review.
+7. Teste que Em Merge não realiza merge automático.
+8. Teste que Mergeado é interpretado como evento pós-merge.
+9. Teste que documentação e archive acontecem antes de Em Merge.
+10. Valide que o agente movimenta automaticamente todas as colunas que são responsabilidade dele.
+
+Ao terminar, apresente um relatório objetivo contendo:
+
+- como o fluxo funcionava antes;
+- quais divergências foram encontradas;
+- quais arquivos foram modificados;
+- quais mudanças foram feitas;
+- como ficou a máquina de estados;
+- quais estados são automáticos;
+- quais estados são Human in the Loop;
+- quais transições são feitas pelo agente;
+- quais transições são feitas pelo humano;
+- como o poller detecta cada retomada;
+- como a thread é estacionada e retomada;
+- como funciona o loop de Ajustar Spec;
+- como funciona o loop de Ajustar Code;
+- em que momento o reviewer graph é executado;
+- em que momento a OpenSpec é commitada;
+- em que momento a OpenSpec é arquivada;
+- em que momento a documentação é atualizada;
+- resultado dos testes executados.
+
+Não faça uma reescrita ampla da arquitetura se não for necessário.
+
+Primeiro entenda a implementação existente, depois faça alterações incrementais e compatíveis com o desenho atual.
