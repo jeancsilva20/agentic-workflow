@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 
 from deepagents.backends import LocalShellBackend
@@ -39,7 +40,23 @@ async def create_local_sandbox(sandbox_id: str | None = None):
     extra_env: dict[str, str] | None = None
     pat = get_github_pat()
     if pat:
-        extra_env = {"GH_TOKEN": pat}
+        # Encode as Basic auth: x-access-token:<PAT>
+        _b64 = base64.b64encode(f"x-access-token:{pat}".encode()).decode()
+        extra_env = {
+            "GH_TOKEN": pat,
+            # The Replit host sets GIT_ASKPASS=replit-git-askpass which hangs
+            # on git push because the proxy is not available inside the sandbox.
+            # Override with empty string so git ignores it and falls through to
+            # the http.extraheader we inject below.
+            "GIT_ASKPASS": "",
+            "GIT_TERMINAL_PROMPT": "0",
+            # Inject PAT as HTTP Basic auth for all github.com git operations.
+            # GIT_CONFIG_* vars are supported since git 2.31 and take precedence
+            # over credential helpers and askpass — no config file is touched.
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+            "GIT_CONFIG_VALUE_0": f"Authorization: Basic {_b64}",
+        }
 
     return LocalShellBackend(
         root_dir=root_dir,
