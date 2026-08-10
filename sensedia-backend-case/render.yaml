@@ -1,5 +1,0 @@
-services:
-  - type: web
-    name: sensedia-api-backend
-    runtime: python
-    startCommand: ./start.sh

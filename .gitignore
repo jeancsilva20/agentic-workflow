@@ -74,3 +74,12 @@ logs/
 
 # Runtime config the agent console writes (operational values only, no secrets)
 agent-console/data/
+
+# Target repository clones and agent run output. These belong to the repository
+# the agent works on (and to the sandbox root outside this tree), never to us —
+# a clone landing here means every git command "in the target repo" would hit
+# this repository instead.
+/sensedia-backend-case/
+/harness/
+/openspec/changes/*/harness/
+/home/
