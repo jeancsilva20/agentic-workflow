@@ -1,47 +1,54 @@
+# Design — Corrigir 500 em POST /clientes ao cadastrar nome com número
+
 ## Context
 
-`POST /api/v1/clientes` (`app/routers/cliente_router.py` → `app/services/cliente_service.py::criar_cliente`) valida, nesta ordem: (1) se o nome contém algum dígito, (2) se o CPF já existe, (3) se o e-mail já existe. As duas últimas levantam `HTTPException(status_code=400, ...)`, capturadas pelo handler `@app.exception_handler(HTTPException)` em `app/main.py`, que retorna 400 com `{"detail": ...}`. A primeira levanta `RuntimeError`, que não é uma `HTTPException` e por isso cai no handler genérico `@app.exception_handler(Exception)`, retornando sempre 500 com `{"detail": "Erro interno do servidor"}` — e sendo logado como `ERROR` (ver `openspec/changes/loguru-error-logging`), quando na verdade é um erro de entrada do cliente, não um erro interno do sistema.
+`app/services/cliente_service.py::criar_cliente` executa três validações de negócio antes de persistir um novo cliente:
 
-O alerta SSAI-90 (gerado por monitoramento, não por um humano lendo o código) recomenda "ajustar a validação para permitir números ou normalizar o input". Essa recomendação é uma hipótese do alerta, não um requisito confirmado no código ou na descrição do card — ver regra de fundamentação nº 4. O código não documenta por que a regra "nome sem número" existe; não há teste, comentário ou histórico de commit explicando a motivação de negócio.
+```python
+if re.search(r'\d', dados_cliente.nome):
+    raise RuntimeError(...)                          # -> não tratado -> 500
+if self.repository.buscar_por_cpf(dados_cliente.cpf):
+    raise HTTPException(status_code=400, ...)         # -> 400
+if self.repository.buscar_por_email(dados_cliente.email):
+    raise HTTPException(status_code=400, ...)         # -> 400
+```
+
+Não há um exception handler global para `RuntimeError` em `app/main.py` (apenas o handler genérico de `Exception`, que loga e retorna 500 — ver `LogService`/middleware de correlação). Por isso, a validação de nome se comporta de forma diferente das duas vizinhas na mesma função: entrada rejeitada pelo mesmo tipo de motivo (regra de negócio no cadastro), mas com um status HTTP incompatível com o padrão REST esperado (erro do cliente, não do servidor).
+
+O projeto não possui suíte de testes (`tests/` inexistente, nenhuma dependência de teste em `requirements.txt`) — ver Harness Report (`SSAI-90-harness-report.md`).
 
 ## Goals / Non-Goals
 
-**Goals:**
-- Eliminar o 500 indevido: erro de validação de entrada do cliente deve resultar em 4xx, nunca em 500.
-- Manter o comportamento de negócio observável idêntico para os dois outros casos de validação (CPF duplicado, e-mail duplicado) — não são afetados por esta mudança.
-- Adicionar cobertura de teste para o método que hoje não tem nenhuma (ver harness report).
+**Goals**
+- Fazer com que `POST /clientes` retorne 400 (não 500) quando o nome contém um número, mantendo a mensagem de erro atual.
+- Alinhar o tratamento de erro dessa validação com o padrão já estabelecido pelas validações de CPF/e-mail duplicados no mesmo método.
+- Cobrir o método `criar_cliente` com testes unitários mínimos, já que nenhum existe hoje.
 
-**Non-Goals:**
-- Decidir se a regra "nome não pode conter número" deve continuar existindo, ser flexibilizada ou normalizar a entrada — ver "Open Questions" abaixo.
-- Alterar a resposta de sucesso ou o schema de `ClienteCreate`/`ClienteResponse`.
-- Introduzir um framework de testes novo (usa-se `unittest` da biblioteca padrão; ver harness report — o projeto não declara `pytest` nem qualquer outro runner).
+**Non-Goals**
+- Não é objetivo desta mudança decidir se nomes com números devem ou não ser aceitos (ver Open Questions).
+- Não é objetivo introduzir um exception handler global para `RuntimeError`/exceções não tratadas em `app/main.py` — o escopo é a correção pontual no service, consistente com o padrão local já existente (`HTTPException` levantada diretamente no service, sem handler intermediário).
+- Não é objetivo normalizar/sanitizar a entrada de nome (ex.: remover números automaticamente) — isso mudaria silenciosamente o dado do cliente e não foi solicitado nem pelo card nem evidenciado no código.
 
 ## Decisions
 
-### 1. Corrigir o tipo de erro, não a regra de negócio
-**Decisão:** trocar `raise RuntimeError(...)` por `raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=...)` no bloco de validação de nome, mantendo o texto da mensagem (adaptado para `detail`).
-
-**Alternativas consideradas:**
-- *Remover a validação de nome inteiramente*: resolveria o 500, mas descartaria uma regra de negócio existente sem evidência de que ela deveria deixar de existir — maior raio de impacto do que o necessário para corrigir o defeito relatado.
-- *Normalizar o input (remover números do nome antes de salvar)*: mudaria silenciosamente o dado do cliente sem consentimento; é uma decisão de produto mais invasiva que a simples correção de status code, e não está evidenciada como necessária pelo card.
-- *Capturar `RuntimeError` genericamente no handler global e mapear para 400*: mascararia outros `RuntimeError`s não relacionados (bugs reais) como erros de cliente 4xx, o que é pior para observabilidade.
-
-**Rationale:** a correção mínima e evidenciada pelo próprio código (dois vizinhos usando `HTTPException` 400) é trocar o tipo de exceção. É reversível e não decide a questão de produto em aberto.
-
-### 2. Testes com `unittest` da biblioteca padrão, sem novas dependências
-**Decisão:** os testes usam `unittest.TestCase` e `unittest.mock.MagicMock` para simular o repositório (`ClienteRepository`), sem necessidade de banco de dados real nem de `pytest`/`httpx`.
-
-**Rationale:** o harness confirmou que o projeto não tem suíte de testes, runner ou dependências de teste declaradas. A validação de nome ocorre antes de qualquer chamada ao repositório, então um teste unitário do `ClienteService` com um repositório mockado é suficiente e não exige infraestrutura (Postgres) indisponível neste sandbox. Evita adicionar uma dependência nova (`pytest`) quando a biblioteca padrão resolve o problema.
+1. **Trocar `RuntimeError` por `HTTPException(status_code=400, detail=...)`, reaproveitando a mensagem de erro atual.** Alternativa considerada: criar um exception handler global para `RuntimeError` em `app/main.py`. Rejeitada porque nenhuma outra validação de negócio no serviço usa esse padrão — todas as demais levantam `HTTPException` diretamente — e um handler global adicionaria uma segunda convenção para o mesmo problema, exatamente o tipo de inconsistência que este fix está corrigindo.
+2. **Manter a validação de nome com número como está (apenas corrigir o tipo de erro).** A remoção ou alteração da regra de negócio (permitir números no nome) é uma decisão de produto sem evidência no código ou nos critérios do card — não decidida aqui (ver Open Questions).
+3. **Adicionar `pytest` + `httpx` (via `fastapi.testclient.TestClient`, já transitivo de `starlette`) como dependências de desenvolvimento**, criando `tests/` com um teste focado em `ClienteService.criar_cliente`. Alternativa considerada: testar via `TestClient` na camada de rota. Optou-se por testar o service diretamente (unit test, com repositório mockado) porque a causa raiz e o comportamento a corrigir estão inteiramente no service, e testes de rota exigiriam um banco de dados (PostgreSQL) não disponível no sandbox de execução (ver Harness Report).
 
 ## Risks / Trade-offs
 
-- **[A mensagem de erro atual expõe o nome completo do cliente no `detail` de uma resposta 400]** → Já era o comportamento antes desta mudança (a mensagem já citava o nome); manter o texto inalterado preserva o comportamento observável e evita introduzir uma mudança de comportamento não solicitada. Se a exposição do nome em mensagens de erro for uma preocupação, é um assunto separado deste card.
-- **[Testes cobrem apenas a camada de serviço, não um teste de integração via `TestClient`]** → Aceitável dado que o defeito e a correção estão inteiramente na camada de serviço; um teste de integração exigiria banco de dados ou mocks adicionais no `Depends(get_db)`, fora do escopo mínimo desta correção.
+- **[Risco] Nenhuma suíte de testes existente** → **Mitigação:** esta mudança adiciona a baseline mínima de `pytest` escopada ao service afetado, não uma suíte completa do projeto (fora do escopo desta correção).
+- **[Risco] Consumidores da API que hoje tratam esse caso como 500 (retry automático, alertas de "erro de servidor")** → **Mitigação:** a mudança é estritamente uma correção de contrato (o dado já era rejeitado; muda-se apenas de "falha do servidor" para "requisição inválida do cliente"), que é o comportamento correto esperado de uma API REST; nenhum consumidor deveria depender de receber 500 para uma entrada inválida.
 
 ## Open Questions
 
-**A regra "nome do cliente não pode conter números" deve continuar existindo?**
+**Devem nomes com números continuar sendo rejeitados no cadastro de clientes?**
 
-- **Evidência a favor de manter:** é a única leitura defensável do código atual — a regra existe e é aplicada deliberadamente (não é um bug de digitação). Não há evidência de que ela esteja quebrando um fluxo legítimo de negócio; o exemplo do alerta (`'João da Si4lva'`) parece um dado de teste sintético, não um nome real reportado por um cliente.
-- **Evidência a favor de remover/flexibilizar:** a recomendação do alerta de monitoramento sugere permitir números ou normalizar a entrada. No entanto, essa recomendação foi gerada sem leitura do código-fonte (é uma hipótese automática, não uma decisão de produto documentada) e nomes com números são raros no mundo real (sufixos como "2º", ou nomes de empresas/pessoas jurídicas se este cadastro um dia cobrir PJ) — não há indicação no repositório de que este cadastro cubra esse caso.
-- **Recomendação:** manter a regra como está (rejeitar números no nome), apenas corrigindo o status code retornado. Alterar ou remover a regra é uma decisão de produto que este change não deve tomar; se a APROVAÇÃO 1 (revisão de spec) decidir flexibilizar a regra, é uma mudança separada e maior de escopo, não parte desta correção de bug.
+- O alerta (SSAI-90) sugere, como hipótese não confirmada, "ajustar validação para permitir números ou normalizar a entrada" — ou seja, tornar `"João da Si4lva"` aceitável.
+- O código não documenta por que essa regra existe (sem comentário, sem teste, sem menção em `README.md`). Não há evidência de que seja uma exigência de negócio deliberada ou um placeholder/defeito de digitação (a mensagem de erro atual sugere preocupação com "cadastro potencialmente inconsistente", o que indica intenção deliberada de proteção de qualidade de dado).
+- **Opções:**
+  1. **Manter a regra (recomendado)** — apenas corrigir o tipo de erro (400 em vez de 500). Menor raio de impacto; não remove uma validação de negócio existente sem justificativa clara para removê-la.
+  2. **Remover a regra** — passaria a aceitar números em nomes, atendendo à recomendação do alerta. Maior raio de impacto: mudaria o que a API aceita como entrada válida, sem uma justificativa de negócio documentada.
+- **Recomendação:** manter a opção 1 nesta mudança. Se o negócio decidir que nomes com números devem ser aceitos, isso deveria ser uma mudança à parte, com sua própria justificativa registrada.
+
+Esta decisão fica para a APROVAÇÃO 1 (revisão de spec) — não resolvida silenciosamente aqui.

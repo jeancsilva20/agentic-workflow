@@ -1,0 +1,17 @@
+PASSO 1 concluído (contexto coletado e revisado) - bloqueio de infraestrutura confirmado novamente, de forma independente, em sandbox nova.
+
+Contexto (alerta, sem critérios de aceite formais): API Sensedia Day SGB, ambiente QA, POST /clientes, 3 chamadas amostradas (2026-08-07T18:32:42-44Z), todas 500. Erro do backend: "Não é possível cadastrar o cliente 'João da Si4lva': nome contém número". Recomendação do alerta (hipótese, não requisito): ajustar validação/normalizar entrada.
+
+Trabalho já mapeado em execuções anteriores desta mesma thread (PASSO 3 concluído, mas não persistido em nenhum remoto acessível a esta execução): causa raiz confirmada em app/services/cliente_service.py::criar_cliente - a validação de nome com número levanta RuntimeError não tratado (→500), enquanto as validações vizinhas de CPF/e-mail duplicado levantam HTTPException(400, ...) corretamente. Defeito de tipo de erro, não da regra de negócio. A questão de negócio (permitir números no nome) deve permanecer como decisão em aberto no design.md para a APROVAÇÃO 1.
+
+Bloqueio confirmado nesta execução (nova sandbox, testado de forma independente):
+
+GH_TOKEN=dummy gh auth status / gh api user → 401 Bad credentials.
+
+Clone de leitura via HTTPS público de guilhermeallen/sensedia-backend-case funciona normalmente.
+
+git push origin feat/spec-SSAI-90-post-clientes-500-nome-numero (branch de teste, nome validado com git check-ref-format --branch) trava em error: unable to read askpass response from 'replit-git-askpass' até timeout.
+
+Isso reproduz exatamente o comportamento relatado nas três execuções anteriores desta thread - é uma falha do proxy de autenticação/GitHub App do sandbox, não uma questão de permissão de colaborador neste repositório específico. Reportado novamente via report_platform_issue (id 019feada-6506-75e5-9547-974d5c366792), em adição aos já registrados (019feace-a5f0-77a2-8b6d-b368d469fe7f, 019fead8-562f-720b-8ff3-a3b7d3d56f2b).
+
+Nenhum artefato foi publicado no remoto nesta execução. O card permanece em BACKLOG - nenhuma transição de gate é segura enquanto o proxy de autenticação do GitHub não estiver operacional. Assim que a plataforma confirmar a correção, esta thread pode ser re-acionada para refazer o push da spec OpenSpec (ssai-90-corrigir-500-nome-cliente) na branch feat/spec-SSAI-90-post-clientes-500-nome-numero, confirmar o remoto e avançar para Em Revisão de Spec.

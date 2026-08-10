@@ -1,24 +1,29 @@
+# Corrigir 500 em POST /clientes ao cadastrar nome com número
+
 ## Why
 
-Um alerta de monitoramento (SSAI-90) reportou que `POST /clientes` retornou HTTP 500 em QA para clientes cujo nome contém números (ex.: `'João da Si4lva'`). A causa raiz, confirmada em `app/services/cliente_service.py::criar_cliente`, é que a validação de nome levanta um `RuntimeError` não tratado — que escapa para o handler genérico de exceções e vira 500 — enquanto as duas regras de negócio vizinhas na mesma função (CPF duplicado, e-mail duplicado) levantam `HTTPException(status_code=400, ...)` corretamente. O alerta descreve um problema real (500 indevido), mas sua causa é o tipo de erro usado, não necessariamente a regra de negócio em si (ver `design.md` para a decisão em aberto sobre a regra).
+Um alerta de monitoramento (SSAI-90) reportou que `POST /clientes` em QA retornou HTTP 500 em 3 chamadas amostradas, todas rejeitando o mesmo tipo de entrada: um nome de cliente contendo um número (ex.: `"João da Si4lva"`). Investigação do código confirma a causa: em `app/services/cliente_service.py::criar_cliente`, a validação de "nome contém número" levanta um `RuntimeError` não tratado, que escapa como HTTP 500 em vez de um erro de cliente (4xx). As duas validações de negócio vizinhas no mesmo método (CPF duplicado, e-mail duplicado) levantam corretamente `HTTPException(status_code=400, ...)`. Isto é um defeito de tipo de erro contra a própria convenção do arquivo, não a introdução de uma regra nova.
+
+A recomendação do alerta ("ajustar validação para permitir números ou normalizar a entrada") é uma hipótese de monitoramento, não uma decisão de produto confirmada pelo código ou pelo card — ver `design.md` para a decisão em aberto correspondente.
 
 ## What Changes
 
-- Corrigir `ClienteService.criar_cliente` para levantar `HTTPException(status_code=400, ...)` em vez de `RuntimeError` quando o nome do cliente contém um número, alinhando com o padrão já usado pelas validações de CPF e e-mail duplicados na mesma função.
-- Adicionar testes unitários para o método `criar_cliente`, cobrindo o caso do nome com número (agora 400, não mais 500) e os casos de regressão já existentes (CPF duplicado, e-mail duplicado, criação bem-sucedida).
+- Corrigir `ClienteService.criar_cliente` para levantar `HTTPException(status_code=400, ...)` em vez de `RuntimeError` quando o nome do cliente contém um número, alinhando-se com o padrão já usado pelas validações de CPF e e-mail duplicados no mesmo método.
+- Preservar a mensagem de erro existente (mesmo texto do alerta), apenas mudando o tipo/status do erro.
+- Adicionar testes unitários para o método `criar_cliente` cobrindo: nome com número (agora 400, não 500), CPF duplicado (400), e-mail duplicado (400), e criação bem-sucedida (sem números no nome). O projeto não possui nenhuma suíte de testes hoje — esta mudança introduz a baseline mínima de `pytest` para este service.
 
 ## Capabilities
 
 ### New Capabilities
-- `cadastro-clientes`: esta é a primeira vez que a capability de cadastro de clientes é formalizada em OpenSpec (não existe ainda em `openspec/specs/`). O spec documenta o comportamento de criação de cliente relevante a este change — a validação de nome (o defeito corrigido) e as validações vizinhas de CPF/e-mail duplicados (comportamento existente, inalterado, incluído para dar contexto e cobertura de regressão).
+(nenhuma)
 
 ### Modified Capabilities
-<!-- Nenhuma capability existente em openspec/specs/ é modificada; cadastro-clientes ainda não existia como capability canônica -->
+- `cadastro-clientes` — o requisito de validação de nome numérico passa a retornar 400 em vez de 500.
 
 ## Impact
 
-- **Código afetado:** `app/services/cliente_service.py` (método `criar_cliente`)
-- **APIs:** `POST /api/v1/clientes` — mesmo endpoint, mudança apenas no status code e formato do erro retornado quando o nome contém número (de 500 genérico para 400 com `detail` estruturado, no mesmo formato usado pelos outros erros de validação do endpoint)
-- **Testes:** novo módulo de testes unitários para `ClienteService.criar_cliente` (o projeto não possui suíte de testes hoje — ver `harness/SSAI-90-harness-report.md`); usa `unittest` da biblioteca padrão, sem adicionar dependências novas
-- **Dependências:** nenhuma nova dependência
-- **Banco de dados:** nenhuma alteração de schema/migration
+- **Código afetado:** `app/services/cliente_service.py` (método `criar_cliente`).
+- **API:** `POST /clientes` — mudança de status HTTP de 500 para 400 quando o nome contém número; contrato de erro (`detail` da `HTTPException`) alinhado ao padrão das demais validações da rota.
+- **Testes:** novo diretório `tests/` com baseline `pytest` (o projeto não tem nenhum hoje — ver Harness Report).
+- **Dependências:** nenhuma nova dependência de produção; `pytest` (e `httpx`, já usado pelo FastAPI `TestClient` via `starlette`) como dependência de desenvolvimento.
+- **Sem impacto em banco de dados/migrations.**
