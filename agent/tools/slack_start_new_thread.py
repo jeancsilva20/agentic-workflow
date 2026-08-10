@@ -265,7 +265,7 @@ async def slack_start_new_thread(
     }
     if repo:
         new_configurable["repo"] = repo
-    for key in ("user_email", "github_login", "agent_model_id", "agent_effort"):
+    for key in ("user_email", "github_login"):
         value = configurable.get(key)
         if value:
             new_configurable[key] = value

@@ -60,25 +60,22 @@ def test_cron_failure_becomes_a_warning_not_an_exception(monkeypatch) -> None:
     assert "30m" in warning
 
 
-def test_team_settings_failure_becomes_a_warning(monkeypatch) -> None:
-    async def fail(model: str, effort: str) -> None:
-        raise RuntimeError("store unavailable")
+def test_routing_table_is_reported_without_touching_langgraph(monkeypatch) -> None:
+    """Routing is local and read-only — no cron, no Store, nothing to apply."""
+    table = runtime_bridge.routing_table()
 
-    monkeypatch.setattr(runtime_bridge, "_upsert_team_default_model", fail)
-
-    warning = runtime_bridge.apply_model_effort("anthropic:claude-sonnet-5", "high")
-
-    assert warning is not None
-    assert "store unavailable" in warning
-
-
-def test_model_effort_upsert_is_dispatched(monkeypatch) -> None:
-    seen: list[tuple[str, str]] = []
-
-    async def record(model: str, effort: str) -> None:
-        seen.append((model, effort))
-
-    monkeypatch.setattr(runtime_bridge, "_upsert_team_default_model", record)
-
-    assert runtime_bridge.apply_model_effort("anthropic:claude-sonnet-5", "high") is None
-    assert seen == [("anthropic:claude-sonnet-5", "high")]
+    assert table, "the router must report at least one role"
+    roles = {entry["role"] for entry in table}
+    assert {"coding_agent", "code_reviewer", "jira_triage"} <= roles
+    for entry in table:
+        assert {"role", "model", "effort", "effort_supported", "active", "selected_by"} <= set(
+            entry
+        )
+        assert entry["model"]
+        assert entry["selected_by"]
+        if not entry["effort_supported"]:
+            assert entry["effort"] is None
+    # A role no call site can reach yet must not read as a live route.
+    by_role = {entry["role"]: entry for entry in table}
+    assert by_role["coding_agent"]["active"] is True
+    assert by_role["jira_triage"]["active"] is False

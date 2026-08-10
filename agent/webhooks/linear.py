@@ -176,21 +176,10 @@ async def process_linear_issue(  # noqa: PLR0912, PLR0915
     # tagged for the dashboard.
     mapped_login = await common.resolve_login_from_email_async(user_email) if user_email else None
 
-    image_model_override: tuple[str, str] | None = None
     if image_urls:
         image_urls = common.dedupe_urls(image_urls)
-        resolved_model_id = await common.resolve_agent_model_id(mapped_login)
-        if not common.model_supports_images(resolved_model_id):
-            fallback_model_id, fallback_effort = common.default_vision_model_pair()
-            common.logger.info(
-                "Using vision fallback model %s for %d Linear image(s); configured model %s "
-                "does not support images",
-                fallback_model_id,
-                len(image_urls),
-                resolved_model_id,
-            )
-            resolved_model_id = fallback_model_id
-            image_model_override = (fallback_model_id, fallback_effort)
+        # No vision fallback to pick here: the model comes from the router,
+        # per agent role, and every model it routes to reads images.
         common.logger.info("Preparing %d image(s) for multimodal content", len(image_urls))
         common.logger.debug("Image URLs: %s", image_urls)
 
@@ -224,9 +213,6 @@ async def process_linear_issue(  # noqa: PLR0912, PLR0915
     }
     if mapped_login:
         configurable["github_login"] = mapped_login
-    if image_model_override:
-        configurable["agent_model_id"] = image_model_override[0]
-        configurable["agent_effort"] = image_model_override[1]
 
     await common.upsert_agent_thread_owner_metadata(
         thread_id,

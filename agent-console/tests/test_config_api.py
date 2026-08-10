@@ -1,7 +1,7 @@
 """Backend coverage for the operational config API.
 
-Two things are deliberately faked here: the LangGraph side effects (a cron and
-a Store record, both owned by the other process — exercised for real in
+Two things are deliberately faked here: the LangGraph side effect (the poller
+cron, owned by the other process — exercised for real in
 ``tests/agent/test_poller_cron.py``) and the config file location, which every
 test points at its own tmp path so one test's persisted state can't leak into
 the next.
@@ -20,15 +20,11 @@ import pytest
 import runtime_bridge
 from store import store as global_store
 
-_KIMI = "fireworks:accounts/fireworks/models/kimi-k3"  # efforts: low/high/max only
-
 
 class _BridgeCalls:
     def __init__(self) -> None:
         self.polling: list[int] = []
-        self.model: list[tuple[str, str]] = []
         self.polling_warning: str | None = None
-        self.model_warning: str | None = None
 
 
 @pytest.fixture
@@ -48,12 +44,7 @@ def bridge(monkeypatch) -> _BridgeCalls:
         calls.polling.append(minutes)
         return calls.polling_warning
 
-    def fake_model(model: str, effort: str) -> str | None:
-        calls.model.append((model, effort))
-        return calls.model_warning
-
     monkeypatch.setattr(runtime_bridge, "apply_polling_interval", fake_polling)
-    monkeypatch.setattr(runtime_bridge, "apply_model_effort", fake_model)
     return calls
 
 
@@ -77,25 +68,27 @@ def _log_messages() -> list[str]:
 # --- GET ----------------------------------------------------------------
 
 
-def test_get_config_returns_the_four_operational_settings(client) -> None:
+def test_get_config_returns_the_two_operational_settings(client) -> None:
     body = client.get("/api/config").get_json()
 
     assert body["shadow_mode"] is False
-    assert isinstance(body["model"], str) and body["model"]
-    assert isinstance(body["effort"], str) and body["effort"]
     assert body["polling_interval_minutes"] == 1
+
+
+def test_get_config_no_longer_offers_a_model_choice(client) -> None:
+    """Model and effort are the router's call, not an operator setting."""
+    body = client.get("/api/config").get_json()
+
+    assert "model" not in body
+    assert "effort" not in body
+    assert "available_models" not in body
+    assert "available_efforts" not in body
 
 
 def test_get_config_lists_the_available_choices(client) -> None:
     body = client.get("/api/config").get_json()
 
     assert body["available_polling_intervals"] == [1, 5, 10, 30, 60]
-    assert any(model["id"] == _KIMI for model in body["available_models"])
-    assert all(
-        {"id", "label", "efforts", "default_effort"} <= set(m) for m in body["available_models"]
-    )
-    assert "high" in body["available_efforts"]
-    assert body["model"] in {model["id"] for model in body["available_models"]}
 
 
 def test_get_config_exposes_no_secrets(client, monkeypatch) -> None:
@@ -108,11 +101,7 @@ def test_get_config_exposes_no_secrets(client, monkeypatch) -> None:
 
     assert set(body) == {
         "shadow_mode",
-        "model",
-        "effort",
         "polling_interval_minutes",
-        "available_models",
-        "available_efforts",
         "available_polling_intervals",
     }
     assert "super-secret-token" not in raw
@@ -169,48 +158,46 @@ def test_put_rejects_a_non_boolean_shadow_mode(client) -> None:
     assert "shadow_mode" in response.get_json()["error"]
 
 
-# --- model and effort ----------------------------------------------------
+# --- routing table -------------------------------------------------------
 
 
-def test_put_accepts_a_supported_model_and_effort(client, bridge) -> None:
-    response = client.put("/api/config", json={"model": _KIMI, "effort": "max"})
+def test_routing_endpoint_reports_one_entry_per_role(client) -> None:
+    body = client.get("/api/config/routing").get_json()
 
-    assert response.status_code == 200
-    body = response.get_json()
-    assert (body["model"], body["effort"]) == (_KIMI, "max")
-    assert bridge.model == [(_KIMI, "max")]
-    assert "config: model changed from" in "\n".join(_log_messages())
-
-
-def test_put_rejects_an_unknown_model(client, bridge) -> None:
-    response = client.put("/api/config", json={"model": "anthropic:claude-imaginary-9"})
-
-    assert response.status_code == 400
-    assert "unsupported model" in response.get_json()["error"]
-    assert bridge.model == []
-    assert client.get("/api/config").get_json()["model"] != "anthropic:claude-imaginary-9"
+    table = body["routing"]
+    roles = [entry["role"] for entry in table]
+    assert len(roles) == len(set(roles)), "a role must appear once"
+    assert {"jira_triage", "coding_agent", "code_reviewer", "docs_agent"} <= set(roles)
 
 
-def test_put_rejects_an_effort_the_model_does_not_support(client) -> None:
-    response = client.put("/api/config", json={"model": _KIMI, "effort": "medium"})
+def test_routing_endpoint_omits_effort_for_models_that_reject_it(client) -> None:
+    table = client.get("/api/config/routing").get_json()["routing"]
 
-    assert response.status_code == 400
-    assert "not supported by model" in response.get_json()["error"]
+    triage = next(entry for entry in table if entry["role"] == "jira_triage")
+    assert triage["effort"] is None
 
-
-def test_put_rejects_an_unknown_effort(client) -> None:
-    response = client.put("/api/config", json={"effort": "turbo"})
-
-    assert response.status_code == 400
+    reviewer = next(entry for entry in table if entry["role"] == "code_reviewer")
+    assert reviewer["effort"] == "high"
+    assert reviewer["effort_supported"] is True
 
 
-def test_model_effort_warning_is_surfaced_and_logged(client, bridge) -> None:
-    bridge.model_warning = "team settings were not updated (connection refused)"
+def test_routing_endpoint_says_which_roles_actually_run(client) -> None:
+    """A role no call site reaches yet must not be shown as a live route."""
+    table = client.get("/api/config/routing").get_json()["routing"]
 
-    body = client.put("/api/config", json={"model": _KIMI, "effort": "high"}).get_json()
+    coding = next(entry for entry in table if entry["role"] == "coding_agent")
+    assert coding["active"] is True
+    assert coding["selected_by"]
 
-    assert body["warnings"] == [bridge.model_warning]
-    assert f"config: {bridge.model_warning}" in _log_messages()
+    triage = next(entry for entry in table if entry["role"] == "jira_triage")
+    assert triage["active"] is False
+    assert triage["selected_by"].startswith("not selected")
+
+
+def test_routing_is_read_only(client) -> None:
+    """No PUT: an operator cannot pin a role to a model."""
+    assert client.put("/api/config/routing", json={"coding_agent": "x"}).status_code == 405
+    assert client.put("/api/config", json={"model": "anthropic:claude-opus-5"}).status_code == 400
 
 
 # --- polling interval ----------------------------------------------------
@@ -252,27 +239,19 @@ def test_unchanged_interval_does_not_touch_the_cron(client, bridge) -> None:
 
 
 def test_configuration_survives_a_restart(client, config_path) -> None:
-    client.put(
-        "/api/config",
-        json={"shadow_mode": True, "polling_interval_minutes": 30, "model": _KIMI, "effort": "low"},
-    )
+    client.put("/api/config", json={"shadow_mode": True, "polling_interval_minutes": 30})
 
     reloaded = config_store.OperationalConfig(path=config_path).get()
 
-    assert reloaded == {
-        "shadow_mode": True,
-        "model": _KIMI,
-        "effort": "low",
-        "polling_interval_minutes": 30,
-    }
+    assert reloaded == {"shadow_mode": True, "polling_interval_minutes": 30}
 
 
-def test_persisted_file_holds_only_the_four_settings(client, config_path) -> None:
+def test_persisted_file_holds_only_the_two_settings(client, config_path) -> None:
     client.put("/api/config", json={"shadow_mode": True})
 
     stored = json.loads(config_path.read_text())
 
-    assert set(stored) == {"shadow_mode", "model", "effort", "polling_interval_minutes"}
+    assert set(stored) == {"shadow_mode", "polling_interval_minutes"}
     assert os.environ.get("JIRA_API_TOKEN") not in stored.values()
 
 

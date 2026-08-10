@@ -8,14 +8,7 @@ from typing import Any
 import httpx
 from langgraph_sdk import get_client
 
-from .options import (
-    SUPPORTED_MODEL_IDS,
-    canonical_model_pair,
-    model_supports_effort,
-    provider_fallback_pair,
-)
 from .profiles import PROFILES_NAMESPACE
-from .team_settings import get_team_default_model
 from .user_mappings import cached_login_for_email, login_for_email
 
 logger = logging.getLogger(__name__)
@@ -101,74 +94,3 @@ def profile_draft_prs(profile: dict[str, Any] | None) -> bool:
     """Return whether new PRs should be drafts. Defaults to True."""
     value = profile.get("draft_prs") if isinstance(profile, dict) else None
     return value if isinstance(value, bool) else True
-
-
-def _normalize_profile_model_pair(
-    profile: dict[str, Any],
-    *,
-    model_key: str,
-    effort_key: str,
-) -> tuple[str | None, str | None]:
-    model_id = profile.get(model_key)
-    effort = profile.get(effort_key)
-    if (
-        isinstance(model_id, str)
-        and model_id in SUPPORTED_MODEL_IDS
-        and isinstance(effort, str)
-        and model_supports_effort(model_id, effort)
-    ):
-        return model_id, effort
-    # A stored selection whose exact id dropped out of the supported set (e.g. an
-    # Opus minor-version bump) stays on its provider rather than being discarded
-    # and silently deferring to the team default. An absent/unknown-provider
-    # selection still returns (None, None) so the team default applies.
-    if isinstance(model_id, str):
-        provider_pair = provider_fallback_pair(model_id, effort)
-        if provider_pair is not None:
-            return provider_pair
-    return None, None
-
-
-def normalize_profile_overrides(profile: dict[str, Any]) -> tuple[str | None, str | None]:
-    """Return ``(model_id, reasoning_effort)`` if both are valid, else ``(None, None)``."""
-    return _normalize_profile_model_pair(
-        profile,
-        model_key="default_model",
-        effort_key="reasoning_effort",
-    )
-
-
-def normalize_profile_subagent_overrides(
-    profile: dict[str, Any],
-) -> tuple[str | None, str | None]:
-    """Return the profile's subagent model pair if valid, else ``(None, None)``."""
-    return _normalize_profile_model_pair(
-        profile,
-        model_key="default_subagent_model",
-        effort_key="subagent_reasoning_effort",
-    )
-
-
-async def resolve_agent_model_id(
-    github_login: str | None,
-    per_thread_model_id: str | None = None,
-) -> str:
-    """Resolve the agent model ID using the same precedence as ``get_agent``.
-
-    Order: per-thread override → profile override → team default.
-    """
-    model_id, _effort = await get_team_default_model("agent")
-    if github_login:
-        profile = await load_profile(github_login)
-        if profile:
-            overridden_model, _ = normalize_profile_overrides(profile)
-            if overridden_model:
-                model_id = overridden_model
-    if isinstance(per_thread_model_id, str):
-        if per_thread_model_id in SUPPORTED_MODEL_IDS:
-            model_id = per_thread_model_id
-        else:
-            canonical = canonical_model_pair(per_thread_model_id)
-            if canonical is not None:
-                model_id = canonical[0]
-    return model_id

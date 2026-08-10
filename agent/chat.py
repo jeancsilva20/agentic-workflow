@@ -34,17 +34,7 @@ from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.language_models import BaseChatModel
 
-from .dashboard.options import (
-    SUPPORTED_MODEL_IDS,
-    canonical_model_pair,
-    gate_fable_model,
-    model_supports_effort,
-)
-from .dashboard.team_settings import (
-    get_effective_gateway_enabled,
-    get_team_default_model,
-    get_team_fable_enabled,
-)
+from .dashboard.team_settings import get_effective_gateway_enabled
 from .middleware import (
     BasePrepareRunMiddleware,
     ExcludeToolsMiddleware,
@@ -55,6 +45,7 @@ from .middleware import (
     ToolErrorMiddleware,
 )
 from .middleware.prepare_run import PrepareRunState
+from .routing import AgentRole, resolve_model
 from .runtime import (
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_RECURSION_LIMIT,
@@ -138,14 +129,6 @@ async def _cached_gateway_enabled() -> bool:
     )
 
 
-async def _cached_team_chat_model() -> tuple[str, str]:
-    return await ttl_cache.cached(
-        f"team-default-model:chat:{id(get_team_default_model)}",
-        60,
-        lambda: get_team_default_model("chat"),
-    )
-
-
 def _make_model_or_defer(model_id: str, *, use_gateway: bool, **kwargs: Any) -> BaseChatModel:
     try:
         return make_model(model_id, use_gateway=use_gateway, **kwargs)
@@ -194,23 +177,6 @@ class PrepareChatRunMiddleware(BasePrepareRunMiddleware):
         }
 
 
-async def _resolve_chat_model(configurable: dict[str, Any]) -> tuple[str, str]:
-    model_id = configurable.get("chat_model_id")
-    effort = configurable.get("chat_effort")
-    if (
-        isinstance(model_id, str)
-        and model_id in SUPPORTED_MODEL_IDS
-        and isinstance(effort, str)
-        and model_supports_effort(model_id, effort)
-    ):
-        return model_id, effort
-    canonical = canonical_model_pair(model_id, effort)
-    if canonical is not None:
-        return canonical
-    # Team review-chat default, which itself inherits the Agent default if unset.
-    return await _cached_team_chat_model()
-
-
 async def get_chat_agent(config: RunnableConfig) -> Pregel:
     """Get a read-only PR chat agent. No sandbox; PR context comes via config."""
     config = config.copy()
@@ -222,9 +188,16 @@ async def get_chat_agent(config: RunnableConfig) -> Pregel:
     if thread_id is None or not graph_loaded_for_execution(config):
         return create_deep_agent(system_prompt="", tools=[]).with_config(config)
 
-    model_id, effort = await _resolve_chat_model(configurable)
-    model_id, effort = gate_fable_model(
-        model_id, effort, fable_enabled=await get_team_fable_enabled()
+    # Read-only PR chat is a routed role like everything else: neither the
+    # client, nor the profile, nor a team default picks the model here.
+    route = resolve_model(AgentRole.REVIEW_CHAT)
+    model_id, effort = route.model, route.effort
+    logger.info(
+        "Routed %s: model=%s effort=%s reason=%s",
+        route.role.value,
+        route.model,
+        route.effort,
+        route.reason,
     )
     use_gateway = await _cached_gateway_enabled()
     model_kwargs = provider_model_kwargs(

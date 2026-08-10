@@ -8,8 +8,8 @@ import pytest
 from fastapi import HTTPException
 
 from agent.dashboard import routes, thread_api
-from agent.dashboard.agent_overrides import resolve_agent_model_id
 from agent.dashboard.options import model_supports_images
+from agent.routing import AgentRole, resolve_model
 
 _TEXT_ONLY_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro"
 _VISION_MODEL = "openai:gpt-5.6-sol"
@@ -54,101 +54,6 @@ def test_langgraph_proxy_headers_include_api_key(monkeypatch) -> None:
     assert headers["Accept"] == "text/event-stream"
 
 
-async def test_resolve_agent_model_choice_applies_profile_before_team_default(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        assert role == "agent"
-        return _VISION_MODEL, "medium"
-
-    monkeypatch.setattr(thread_api, "get_team_default_model", fake_team_default)
-
-    model_id, effort = await thread_api._resolve_agent_model_choice(
-        {"default_model": _TEXT_ONLY_MODEL, "reasoning_effort": "high"},
-        None,
-        None,
-    )
-
-    assert (model_id, effort) == (_TEXT_ONLY_MODEL, "high")
-
-
-async def test_resolve_agent_model_choice_applies_request_before_profile(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        assert role == "agent"
-        return _VISION_MODEL, "medium"
-
-    monkeypatch.setattr(thread_api, "get_team_default_model", fake_team_default)
-
-    model_id, effort = await thread_api._resolve_agent_model_choice(
-        {"default_model": _TEXT_ONLY_MODEL, "reasoning_effort": "high"},
-        "anthropic:claude-opus-5",
-        "high",
-    )
-
-    assert (model_id, effort) == ("anthropic:claude-opus-5", "high")
-
-
-async def test_resolve_agent_model_choice_migrates_deprecated_request_model(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        return _VISION_MODEL, "medium"
-
-    monkeypatch.setattr(thread_api, "get_team_default_model", fake_team_default)
-
-    model_id, effort = await thread_api._resolve_agent_model_choice(
-        {},
-        "openai:gpt-5.5",
-        "high",
-    )
-
-    assert (model_id, effort) == ("openai:gpt-5.6-sol", "high")
-
-
-async def test_resolve_agent_model_id_defaults_to_team_default(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        return _TEXT_ONLY_MODEL, "high"
-
-    monkeypatch.setattr("agent.dashboard.agent_overrides.get_team_default_model", fake_team_default)
-    monkeypatch.setattr("agent.dashboard.agent_overrides.load_profile", lambda login: None)
-
-    model_id = await resolve_agent_model_id(None)
-    assert model_id == _TEXT_ONLY_MODEL
-
-
-async def test_resolve_agent_model_id_applies_profile_override(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        return _TEXT_ONLY_MODEL, "high"
-
-    monkeypatch.setattr("agent.dashboard.agent_overrides.get_team_default_model", fake_team_default)
-
-    async def fake_load_profile(login: str) -> dict:
-        return {"default_model": _VISION_MODEL, "reasoning_effort": "medium"}
-
-    monkeypatch.setattr("agent.dashboard.agent_overrides.load_profile", fake_load_profile)
-
-    model_id = await resolve_agent_model_id("someuser")
-    assert model_id == _VISION_MODEL
-
-
-async def test_resolve_agent_model_id_applies_per_thread_override(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        return _TEXT_ONLY_MODEL, "high"
-
-    monkeypatch.setattr("agent.dashboard.agent_overrides.get_team_default_model", fake_team_default)
-    monkeypatch.setattr("agent.dashboard.agent_overrides.load_profile", lambda login: None)
-
-    model_id = await resolve_agent_model_id(None, per_thread_model_id="anthropic:claude-opus-5")
-    assert model_id == "anthropic:claude-opus-5"
-
-
-async def test_resolve_agent_model_id_migrates_deprecated_per_thread_override(monkeypatch) -> None:
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        return _TEXT_ONLY_MODEL, "high"
-
-    monkeypatch.setattr("agent.dashboard.agent_overrides.get_team_default_model", fake_team_default)
-    monkeypatch.setattr("agent.dashboard.agent_overrides.load_profile", lambda login: None)
-
-    model_id = await resolve_agent_model_id(None, per_thread_model_id="openai:gpt-5.5")
-    assert model_id == "openai:gpt-5.6-sol"
-
-
 def _new_thread_client(created: dict[str, object]) -> object:
     class FakeThreads:
         async def create(
@@ -175,10 +80,6 @@ def _patch_new_thread_deps(monkeypatch, *, profile: dict[str, object]) -> None:
     async def fake_profile(login: str) -> dict[str, object]:
         return dict(profile)
 
-    async def fake_team_default(role: str) -> tuple[str, str]:
-        assert role == "agent"
-        return _VISION_MODEL, "medium"
-
     async def fake_ensure_token(login: str) -> None:
         return None
 
@@ -186,7 +87,6 @@ def _patch_new_thread_deps(monkeypatch, *, profile: dict[str, object]) -> None:
         return f"{login}@example.com"
 
     monkeypatch.setattr(thread_api, "get_profile", fake_profile)
-    monkeypatch.setattr(thread_api, "get_team_default_model", fake_team_default)
     monkeypatch.setattr(thread_api, "_ensure_dashboard_github_token", fake_ensure_token)
     monkeypatch.setattr(thread_api, "_resolve_run_email", fake_resolve_email)
 
@@ -230,16 +130,17 @@ async def test_enrich_run_start_command_creates_and_stamps_new_thread(monkeypatc
     assert configurable["github_login"] == "octocat"
     assert configurable["source"] == "dashboard"
     assert configurable["repo"] == {"owner": "octo", "name": "repo"}
-    assert configurable["agent_model_id"] == _VISION_MODEL
-    assert configurable["agent_effort"] == "medium"
+    # The client's model picker is a display hint only: the router decides what
+    # a run executes on, so neither key may reach the run config.
+    assert "agent_model_id" not in configurable
+    assert "agent_effort" not in configurable
     # Dashboard-only creation hints must not leak into the run config.
     assert "repo_explicitly_none" not in configurable
     assert enriched["params"]["assistant_id"] == "agent"
 
 
-async def test_enrich_run_start_command_uses_vision_fallback_for_text_only_model(
-    monkeypatch,
-) -> None:
+async def test_enrich_run_start_command_stamps_the_routed_model(monkeypatch) -> None:
+    """Display metadata is the pair the run will actually use, profile or not."""
     created: dict[str, object] = {}
     _patch_new_thread_deps(
         monkeypatch,
@@ -278,15 +179,60 @@ async def test_enrich_run_start_command_uses_vision_fallback_for_text_only_model
         creating=True,
     )
 
+    route = resolve_model(AgentRole.CODING_AGENT)
     stamped = created["metadata"]
     assert isinstance(stamped, dict)
-    assert stamped["model"] == _VISION_MODEL
-    assert stamped["effort"] == "medium"
-    assert stamped["resolved_model"] == _VISION_MODEL
-    assert stamped["resolved_effort"] == "medium"
+    assert stamped["model"] == route.model
+    assert stamped["effort"] == route.effort
+    assert stamped["resolved_model"] == route.model
+    assert stamped["resolved_effort"] == route.effort
     configurable = enriched["params"]["config"]["configurable"]
-    assert configurable["agent_model_id"] == _VISION_MODEL
-    assert configurable["agent_effort"] == "medium"
+    assert "agent_model_id" not in configurable
+    assert "agent_effort" not in configurable
+
+
+async def test_enrich_run_start_command_rejects_images_the_routed_model_cannot_read(
+    monkeypatch,
+) -> None:
+    """The check has to be against the model that receives the image, not a picker."""
+    created: dict[str, object] = {}
+    _patch_new_thread_deps(monkeypatch, profile={})
+    monkeypatch.setattr(thread_api, "langgraph_client", lambda: _new_thread_client(created))
+    monkeypatch.setattr(thread_api, "_routed_run_model", lambda: (_TEXT_ONLY_MODEL, "high"))
+
+    image = _image()
+    command = {
+        "method": "run.start",
+        "params": {
+            "input": {
+                "messages": [
+                    {
+                        "type": "human",
+                        "content": [
+                            {
+                                "type": "image",
+                                "base64": image.base64,
+                                "mime_type": image.mime_type,
+                            },
+                            {"type": "text", "text": "see attached"},
+                        ],
+                    }
+                ]
+            },
+            "config": {"configurable": {}},
+        },
+    }
+
+    with pytest.raises(HTTPException) as excinfo:
+        await thread_api._enrich_run_start_command(
+            "new-tid",
+            "octocat",
+            command,
+            metadata={},
+            creating=True,
+        )
+
+    assert excinfo.value.status_code == 422
 
 
 def _thread_with_metadata(metadata: dict) -> dict:
@@ -761,9 +707,14 @@ async def test_enrich_run_start_command_allowlists_client_configurable(monkeypat
     assert configurable["user_email"] == "octocat@example.com"
     assert configurable["source"] == "dashboard"
     assert configurable["repo"] == {"owner": "octo", "name": "repo"}
-    assert configurable["agent_model_id"] == _VISION_MODEL
-    assert configurable["agent_effort"] == "medium"
-    assert updates[-1]["model"] == _VISION_MODEL
+    assert "agent_model_id" not in configurable
+    assert "agent_effort" not in configurable
+    # What the thread records is what the run will use, not what the client asked
+    # for: the dashboard displays it and the queued-message middleware reads it
+    # to decide whether an image can be sent.
+    route = resolve_model(AgentRole.CODING_AGENT)
+    assert updates[-1]["model"] == route.model
+    assert updates[-1]["effort"] == route.effort
 
 
 async def test_proxy_run_start_from_slack_thread_updates_trace_reply(monkeypatch) -> None:
@@ -1291,7 +1242,7 @@ async def test_enrich_run_start_command_unresolves_thread(monkeypatch) -> None:
     _patch_new_thread_deps(monkeypatch, profile={})
     monkeypatch.setattr(thread_api, "langgraph_client", lambda: FakeClient())
 
-    async def fake_build(thread_id, login, metadata, *, overrides):
+    async def fake_build(thread_id, login, metadata):
         return {"github_login": login, "source": "dashboard"}
 
     monkeypatch.setattr(thread_api, "_build_dashboard_configurable", fake_build)

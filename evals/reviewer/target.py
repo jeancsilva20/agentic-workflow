@@ -86,16 +86,6 @@ def get_score_mode() -> ScoreMode:
     return "surfaced_findings"
 
 
-def get_reviewer_model_id() -> str | None:
-    value = os.getenv("REVIEWER_EVAL_MODEL_ID")
-    return value if value else None
-
-
-def get_reviewer_reasoning_effort() -> str | None:
-    value = os.getenv("REVIEWER_EVAL_REASONING_EFFORT")
-    return value if value else None
-
-
 def _build_user_message(inputs: dict[str, Any]) -> str:
     return (
         f"Review pull request {inputs['pr_url']}.\n\n"
@@ -127,12 +117,8 @@ def _build_configurable(inputs: dict[str, Any]) -> dict[str, Any]:
         "reviewer_eval_severity_threshold": _score_severity_threshold(),
         "reviewer_eval_cap": _score_cap(),
     }
-    model_id = get_reviewer_model_id()
-    if model_id:
-        configurable["reviewer_model_id"] = model_id
-    reasoning_effort = get_reviewer_reasoning_effort()
-    if reasoning_effort:
-        configurable["reviewer_reasoning_effort"] = reasoning_effort
+    # No model override: the reviewer's model comes from the router, so an eval
+    # run measures the same reviewer production gets.
     return configurable
 
 

@@ -60,12 +60,15 @@ def test_official_logo_asset_is_available() -> None:
     assert logo.read_text(encoding="utf-8").lstrip().startswith("<svg")
 
 
-def test_config_panel_exposes_the_four_operational_controls(page: str) -> None:
+def test_config_panel_exposes_the_operational_controls(page: str) -> None:
     assert 'id="agent-config"' in page
     assert "Agent Configuration" in page
-    for control_id in ("cfg-shadow", "cfg-model", "cfg-effort", "cfg-interval"):
+    for control_id in ("cfg-shadow", "cfg-interval"):
         assert f'id="{control_id}"' in page
-    # Values only ever arrive from the API — no model or interval is baked in.
+    # The router owns model and effort, so the panel offers no picker for them.
+    for gone in ('id="cfg-model"', 'id="cfg-effort"'):
+        assert gone not in page
+    # Values only ever arrive from the API — no interval is baked in.
     assert "claude" not in page.lower()
 
 
@@ -95,16 +98,11 @@ def test_page_talks_to_the_real_config_endpoints(client) -> None:
     assert '"/api/config"' in page
 
     config = client.get("/api/config").get_json()
-    for field in (
-        "shadow_mode",
-        "model",
-        "effort",
-        "polling_interval_minutes",
-        "available_models",
-        "available_efforts",
-        "available_polling_intervals",
-    ):
+    for field in ("shadow_mode", "polling_interval_minutes", "available_polling_intervals"):
         assert field in config
+
+    routing = client.get("/api/config/routing").get_json()["routing"]
+    assert routing and all({"role", "model", "effort"} <= set(entry) for entry in routing)
 
 
 def test_browser_behaviour_suite_passes() -> None:

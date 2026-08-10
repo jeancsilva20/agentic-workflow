@@ -1,7 +1,8 @@
 """Agent console: a small Flask page reporting whether the Jira poller is
 alive, the card queue, active/parked/dead runs, and a live execution log
 (design.md / proposal.md), plus the operational configuration an operator can
-change at runtime (`/api/config` — shadow mode, model, effort, poll interval).
+change at runtime (`/api/config` — shadow mode, poll interval) and the model
+router's per-role table (`/api/config/routing`, read-only).
 
 Run with:
     pip install -r agent-console/requirements.txt
@@ -39,6 +40,15 @@ def get_config():
     return jsonify({**operational_config.get(), **operational_config.options()})
 
 
+@app.get("/api/config/routing")
+def get_routing_config():
+    """The model router's table: which model and effort each agent role runs on.
+
+    Read-only by design — routing is automatic, so there is no PUT counterpart.
+    """
+    return jsonify({"routing": runtime_bridge.routing_table()})
+
+
 @app.put("/api/config")
 def put_config():
     payload = request.get_json(silent=True)
@@ -62,9 +72,9 @@ def _apply_to_runtime(applied: dict[str, Any], changes: list[tuple[str, Any, Any
     """Push each changed field to the runtime, logging what changed either way.
 
     Persisting is not applying: the poller picks shadow mode up from the shared
-    config file on its next tick, but the cron and the team-default model live
-    on the LangGraph server and can fail independently. Those failures come back
-    as warnings — the value is saved, the runtime just hasn't taken it yet.
+    config file on its next tick, but the cron lives on the LangGraph server and
+    can fail independently. Those failures come back as warnings — the value is
+    saved, the runtime just hasn't taken it yet.
     """
     for field, old, new in changes:
         store.record_log(_change_message(field, old, new))
@@ -73,8 +83,6 @@ def _apply_to_runtime(applied: dict[str, Any], changes: list[tuple[str, Any, Any
     warnings: list[str] = []
     if "polling_interval_minutes" in changed:
         warnings.append(runtime_bridge.apply_polling_interval(applied["polling_interval_minutes"]))
-    if changed & {"model", "effort"}:
-        warnings.append(runtime_bridge.apply_model_effort(applied["model"], applied["effort"]))
 
     warnings = [warning for warning in warnings if warning]
     for warning in warnings:

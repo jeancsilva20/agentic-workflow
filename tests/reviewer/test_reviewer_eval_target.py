@@ -8,9 +8,7 @@ from agent.review.findings import new_finding
 from evals.reviewer import target
 
 
-def test_eval_target_marks_runs_as_eval_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("REVIEWER_EVAL_MODEL_ID", raising=False)
-    monkeypatch.delenv("REVIEWER_EVAL_REASONING_EFFORT", raising=False)
+def test_eval_target_marks_runs_as_eval_dry_run() -> None:
     configurable = target._build_configurable(
         {
             "repo": "acme/repo",
@@ -46,10 +44,10 @@ def test_eval_target_passes_configured_cap(monkeypatch: pytest.MonkeyPatch) -> N
     assert configurable["reviewer_eval_cap"] == 1
 
 
-def test_eval_target_passes_model_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("REVIEWER_EVAL_MODEL_ID", "anthropic:claude-opus-5")
-    monkeypatch.setenv("REVIEWER_EVAL_REASONING_EFFORT", "high")
-
+def test_eval_target_does_not_override_the_reviewer_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The router owns the reviewer's model, so an eval cannot swap it out."""
     configurable = target._build_configurable(
         {
             "repo": "acme/repo",
@@ -61,8 +59,8 @@ def test_eval_target_passes_model_overrides(monkeypatch: pytest.MonkeyPatch) -> 
         }
     )
 
-    assert configurable["reviewer_model_id"] == "anthropic:claude-opus-5"
-    assert configurable["reviewer_reasoning_effort"] == "high"
+    assert "reviewer_model_id" not in configurable
+    assert "reviewer_reasoning_effort" not in configurable
 
 
 def _result_with_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:

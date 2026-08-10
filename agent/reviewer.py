@@ -40,13 +40,9 @@ from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from .dashboard.options import gate_fable_model
 from .dashboard.team_settings import (
     get_effective_gateway_enabled,
     get_org_review_guidelines,
-    get_team_default_grouping_model,
-    get_team_default_model_pair,
-    get_team_fable_enabled,
 )
 from .middleware import (
     BasePrepareRunMiddleware,
@@ -87,6 +83,7 @@ from .review.trace_context import (
     format_pr_trace_context_prompt,
     prepare_pr_trace_context,
 )
+from .routing import AgentRole, resolve_model
 from .runtime import (
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_RECURSION_LIMIT,
@@ -880,40 +877,22 @@ def _on_background_task_done(task: asyncio.Task[None]) -> None:
         logger.warning("Background reviewer task failed: %s", exc)
 
 
-async def _resolve_grouping_model(
-    configurable: dict[str, object], *, use_gateway: bool
-) -> BaseChatModel:
-    """Resolve the model for the diff-grouping pass.
-
-    Per-run override (``grouping_model_id``/``grouping_reasoning_effort``) wins;
-    otherwise the team default, which itself inherits the reviewer subagent
-    model when no grouping-specific model is configured.
-    """
-    configured_model_id = configurable.get("grouping_model_id")
-    configured_effort = configurable.get("grouping_reasoning_effort")
-    if isinstance(configured_model_id, str) and configured_model_id:
-        model_id = configured_model_id
-        effort = configured_effort if isinstance(configured_effort, str) else None
-    else:
-        model_id, effort = await get_team_default_grouping_model()
-    model_id, effort = gate_fable_model(
-        model_id, effort, fable_enabled=await get_team_fable_enabled()
+def _resolve_grouping_model(*, use_gateway: bool) -> BaseChatModel:
+    """The model for the diff-grouping pass, from the router."""
+    route = resolve_model(AgentRole.DIFF_GROUPING)
+    logger.info(
+        "Routed diff_grouping: model=%s effort=%s reason=%s",
+        route.model,
+        route.effort,
+        route.reason,
     )
     model_kwargs = provider_model_kwargs(
-        model_id,
-        effort,
+        route.model,
+        route.effort,
         max_tokens=DEFAULT_LLM_MAX_TOKENS,
         openai_reasoning_default=DEFAULT_LLM_REASONING,
     )
-    return _make_model_or_defer(model_id, use_gateway=use_gateway, **model_kwargs)
-
-
-async def _cached_reviewer_team_defaults():
-    return await ttl_cache.cached(
-        f"team-default-model-pair:reviewer:{id(get_team_default_model_pair)}",
-        60,
-        lambda: get_team_default_model_pair("reviewer"),
-    )
+    return _make_model_or_defer(route.model, use_gateway=use_gateway, **model_kwargs)
 
 
 async def _cached_gateway_enabled() -> bool:
@@ -1326,9 +1305,7 @@ class PrepareReviewerRunMiddleware(BasePrepareRunMiddleware):
                 )
 
         if reviewer_event != "finding_reply" and pr_diff_text and self._thread_id:
-            grouping_model = await _resolve_grouping_model(
-                configurable, use_gateway=self._use_gateway
-            )
+            grouping_model = _resolve_grouping_model(use_gateway=self._use_gateway)
             grouping_task = asyncio.create_task(
                 maybe_generate_and_store_diff_groups(
                     thread_id=self._thread_id,
@@ -1360,41 +1337,19 @@ async def get_reviewer_agent(config: RunnableConfig) -> Pregel:
         logger.info("No thread_id or not for execution, returning reviewer agent without sandbox")
         return create_deep_agent(system_prompt="", tools=[]).with_config(config)
 
-    configured_model_id = configurable.get("reviewer_model_id")
-    configured_effort = configurable.get("reviewer_reasoning_effort")
-    if isinstance(configured_model_id, str) and configured_model_id:
-        model_id = configured_model_id
-        reasoning_effort = configured_effort if isinstance(configured_effort, str) else None
-        subagent_model_id = model_id
-        subagent_effort = reasoning_effort
-    else:
-        (
-            (model_id, reasoning_effort),
-            (subagent_model_id, subagent_effort),
-        ) = await _cached_reviewer_team_defaults()
-        logger.info(
-            "Using team default reviewer model: model=%s effort=%s",
-            model_id,
-            reasoning_effort,
-        )
-        logger.info(
-            "Using team default reviewer subagent model: model=%s effort=%s",
-            subagent_model_id,
-            subagent_effort,
-        )
-    configured_subagent_model_id = configurable.get("reviewer_subagent_model_id")
-    configured_subagent_effort = configurable.get("reviewer_subagent_reasoning_effort")
-    if isinstance(configured_subagent_model_id, str) and configured_subagent_model_id:
-        subagent_model_id = configured_subagent_model_id
-        subagent_effort = (
-            configured_subagent_effort if isinstance(configured_subagent_effort, str) else None
-        )
-    fable_enabled = await get_team_fable_enabled()
-    model_id, reasoning_effort = gate_fable_model(
-        model_id, reasoning_effort, fable_enabled=fable_enabled
-    )
-    subagent_model_id, subagent_effort = gate_fable_model(
-        subagent_model_id, subagent_effort, fable_enabled=fable_enabled
+    route = resolve_model(AgentRole.CODE_REVIEWER)
+    model_id = route.model
+    reasoning_effort = route.effort
+    # The reviewer's subagents read the same diff and answer to the same
+    # review; a weaker model there would produce findings the reviewer has to
+    # second-guess.
+    subagent_model_id = route.model
+    subagent_effort = route.effort
+    logger.info(
+        "Routed code_reviewer: model=%s effort=%s reason=%s",
+        route.model,
+        route.effort,
+        route.reason,
     )
     model_kwargs = provider_model_kwargs(
         model_id,

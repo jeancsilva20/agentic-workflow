@@ -1,14 +1,17 @@
 """Applies a console config change to the running LangGraph server.
 
-Only two of the four settings need anything here. Shadow mode does not: the
+Only one of the two settings needs anything here. Shadow mode does not: the
 poller reads the same file the console writes, so the next tick picks it up.
-The other two live on the LangGraph server — the polling interval is a cron,
-and the model/effort pair is a record in its Store — and have to be pushed.
+The polling interval is a cron on the LangGraph server and has to be pushed.
 
-Every function returns ``None`` on success or a human-readable warning on
+Every apply function returns ``None`` on success or a human-readable warning on
 failure, never raising: the operator's choice is already persisted at that
 point, so the honest outcome is "saved, but the runtime did not take it",
 not a 500 that implies nothing was saved.
+
+It also reads one thing the console never writes: the model router's per-role
+table, exposed here because the same ``sys.path`` bridge into the sibling
+``agent/`` package is already set up.
 """
 
 from __future__ import annotations
@@ -91,32 +94,12 @@ def apply_polling_interval(minutes: int) -> str | None:
     return None
 
 
-def apply_model_effort(model: str, effort: str) -> str | None:
-    """Store the pair as the team-wide agent default, used by new Jira runs."""
-    try:
-        _run(_upsert_team_default_model(model, effort))
-    except Exception as exc:  # noqa: BLE001 — reported to the operator, never raised
-        logger.warning("Failed to store the team default model/effort", exc_info=True)
-        return (
-            f"model/effort saved as {model} ({effort}), but the LangGraph team settings were "
-            f"not updated ({exc}); new runs keep the previous model until this succeeds"
-        )
-    return None
+def routing_table() -> list[dict[str, Any]]:
+    """The router's per-role model table, read straight from the runtime.
 
+    Read-only and local: no LangGraph call, no operator input. Routing is
+    automatic, so the console reports the table rather than editing it.
+    """
+    from agent.routing import routing_table as _routing_table
 
-async def _upsert_team_default_model(model: str, effort: str) -> None:
-    from agent.dashboard.team_settings import (
-        TeamSettingsUpdate,
-        get_team_settings,
-        upsert_team_settings,
-    )
-
-    # Read-modify-write: the upsert replaces the whole record, so everything
-    # else an admin configured there has to be carried over unchanged.
-    current = await get_team_settings()
-    payload = {
-        field: value for field, value in current.items() if field in TeamSettingsUpdate.model_fields
-    }
-    payload["default_agent_model"] = model
-    payload["default_agent_reasoning_effort"] = effort
-    await upsert_team_settings(TeamSettingsUpdate(**payload))
+    return _routing_table()

@@ -42,9 +42,9 @@ from .middleware import (
     ToolErrorMiddleware,
 )
 from .review.style_guidance import REVIEWER_STYLE_THEMES
+from .routing import AgentRole, resolve_model
 from .runtime import (
     DEFAULT_LLM_MAX_TOKENS,
-    DEFAULT_LLM_MODEL_ID,
     DEFAULT_RECURSION_LIMIT,
     ensure_sandbox_for_thread,
     get_cached_sandbox_backend,
@@ -176,11 +176,19 @@ async def get_analyzer(config: RunnableConfig) -> Pregel:
     default_backend = get_cached_sandbox_backend(thread_id, reconnect=reconnect_backend)
     backend = CompositeBackend(default=default_backend, routes={SKILLS_ROUTE: StateBackend()})
 
-    model_id = DEFAULT_LLM_MODEL_ID
+    route = resolve_model(AgentRole.STYLE_ANALYZER)
+    model_id = route.model
+    logger.info(
+        "Routed %s: model=%s effort=%s reason=%s",
+        route.role.value,
+        route.model,
+        route.effort,
+        route.reason,
+    )
     use_gateway = await _cached_gateway_enabled()
     model_kwargs = provider_model_kwargs(
         model_id,
-        None,
+        route.effort,
         max_tokens=DEFAULT_LLM_MAX_TOKENS,
         openai_reasoning_default=DEFAULT_LLM_REASONING,
     )

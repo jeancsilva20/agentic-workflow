@@ -43,10 +43,11 @@ console is entirely optional infrastructure.
   and never by anything the page keeps to itself. The supplied SVG is stored at
   `static/sensedia-logo.svg` (see `static/README.md`); a neutral fallback slot
   remains available if the asset cannot be loaded.
-- **Agent Configuration** — the four operational settings below as a toggle
-  and three dropdowns, filled from the API. A change disables the controls,
-  shows `Saving…`, and either confirms or reverts: the panel only ever shows a
-  value the backend accepted (see "Operational configuration").
+- **Agent Configuration** — the operational settings below as a toggle and a
+  dropdown, filled from the API. A change disables the controls, shows
+  `Saving…`, and either confirms or reverts: the panel only ever shows a value
+  the backend accepted (see "Operational configuration"). Model and effort are
+  not here: the router picks them per agent role (see "Model routing").
 - **Overall status** — `working` (a run is executing), `waiting` (nothing
   executing, but at least one run is parked at a gate or a card is queued),
   `idle` (nothing to do), `degraded_poller` (no tick for more than two poll
@@ -71,30 +72,29 @@ console is entirely optional infrastructure.
   choices available for each field.
 - `PUT /api/config` — change one or more of them. Partial payloads are fine;
   an invalid value is rejected with `400` and nothing is applied.
+- `GET /api/config/routing` — the model router's table: which model and effort
+  each agent role runs on. Read-only; there is no `PUT` counterpart.
 
 ## Operational configuration
 
-Four settings can be changed here without restarting the LangGraph server:
+Two settings can be changed here without restarting the LangGraph server:
 
 | Field | Values | Applied by |
 | --- | --- | --- |
 | `shadow_mode` | `true` / `false` | the poller, on its next tick |
-| `model` | any id in `available_models` | new Jira runs (team defaults) |
-| `effort` | an effort the chosen model supports | new Jira runs (team defaults) |
 | `polling_interval_minutes` | `1`, `5`, `10`, `30`, `60` | the poller cron |
 
 The values are seeded from `JIRA_POLLER_SHADOW_MODE` /
-`JIRA_POLL_INTERVAL_SECONDS` and the team default model, then persisted to
+`JIRA_POLL_INTERVAL_SECONDS`, then persisted to
 `agent-console/data/operational_config.json` — so a change survives a page
 refresh and a restart of either process. The `.env` file is never rewritten;
 once a value has been set here, the console's copy wins over the environment.
 
 That file is also how the poller learns about shadow mode: it reads it on each
 tick rather than being pushed to, so a console that is down never delays or
-blocks a run. The other two settings do need the LangGraph server — the
-polling interval replaces the poller's cron (deleting the old one first, so
-there is never a second cron double-ticking), and the model/effort pair is
-written to the team settings in the LangGraph Store. If either push fails, the
+blocks a run. The polling interval does need the LangGraph server — it replaces
+the poller's cron (deleting the old one first, so there is never a second cron
+double-ticking). If that push fails, the
 value is still saved and the response carries a `warnings` entry saying the
 runtime has not taken it yet. The cron is replaced by deleting before creating,
 so if the creation is the part that fails the poller is left with no cron at
@@ -104,6 +104,25 @@ installed cron against the saved interval and reinstalls it when they differ.
 
 Every change is written to the execution log (`config: shadow mode enabled`,
 `config: polling interval changed from 1m to 10m`, …).
+
+## Model routing
+
+Which model each step of the workflow runs on is not an operator setting. The
+router in `agent/routing` decides it from the agent role — triage and archiving
+on Haiku, spec authoring on Sonnet, spec and code review on Opus — escalating
+the coding roles to Opus after two failed attempts or on a risky change (auth,
+migration, security, concurrency). Which role a run is is decided from the Jira
+column the poller resumed it at, so a card in `Ajustar Spec` and a card in
+`Aprovado Code` do not run on the same model.
+
+Every other LLM entrypoint is routed the same way — PR review chat and the
+review-style analyzer included — so no request field, profile or team default
+picks a model anywhere.
+
+`GET /api/config/routing` reports the whole table so the console can show what a
+role will run on and why. Each row also carries `active` and `selected_by`: a few
+roles in the enum are phases that happen inside another role's run and nothing
+selects them yet, and the table says so instead of implying they are live.
 
 ## Tests
 

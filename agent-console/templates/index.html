@@ -227,14 +227,6 @@
         </label>
       </div>
       <div class="config-field">
-        <label class="config-label" for="cfg-model">Model</label>
-        <select id="cfg-model" disabled></select>
-      </div>
-      <div class="config-field">
-        <label class="config-label" for="cfg-effort">Effort</label>
-        <select id="cfg-effort" disabled></select>
-      </div>
-      <div class="config-field">
         <label class="config-label" for="cfg-interval">Check Jira every</label>
         <select id="cfg-interval" disabled></select>
       </div>
@@ -341,16 +333,14 @@ async function refresh() {
 // That is what makes a failed PUT roll back — we simply re-render, so the
 // screen can never show a setting the runtime rejected.
 
-let config = null;      // {shadow_mode, model, effort, polling_interval_minutes}
-let options = null;     // {available_models, available_efforts, available_polling_intervals}
+let config = null;      // {shadow_mode, polling_interval_minutes}
+let options = null;     // {available_polling_intervals}
 let saving = false;     // one admin change at a time; concurrent PUTs are blocked
 let statusTimer = null;
 
 const cfgEls = {
   shadow: () => document.getElementById("cfg-shadow"),
   shadowState: () => document.getElementById("cfg-shadow-state"),
-  model: () => document.getElementById("cfg-model"),
-  effort: () => document.getElementById("cfg-effort"),
   interval: () => document.getElementById("cfg-interval"),
   status: () => document.getElementById("cfg-status"),
 };
@@ -368,7 +358,7 @@ function setCfgStatus(kind, message, autoClear) {
 }
 
 function setCfgDisabled(disabled) {
-  [cfgEls.shadow(), cfgEls.model(), cfgEls.effort(), cfgEls.interval()].forEach(el => {
+  [cfgEls.shadow(), cfgEls.interval()].forEach(el => {
     el.disabled = disabled;
   });
 }
@@ -387,10 +377,6 @@ function fillSelect(select, items, selected) {
 
 function fmtInterval(minutes) {
   return minutes === 1 ? "1 minute" : minutes + " minutes";
-}
-
-function modelOption(id) {
-  return (options.available_models || []).find(m => m.id === id) || null;
 }
 
 function renderShadowIndicator() {
@@ -422,25 +408,6 @@ function renderConfig() {
   cfgEls.shadowState().textContent = config.shadow_mode ? "ON" : "OFF";
 
   fillSelect(
-    cfgEls.model(),
-    (options.available_models || []).map(m => ({ value: m.id, label: m.label })),
-    config.model
-  );
-
-  // Every effort the backend knows is listed, but the ones the selected model
-  // rejects are greyed out — the backend is still the one validating the pair.
-  const selected = modelOption(config.model);
-  fillSelect(
-    cfgEls.effort(),
-    (options.available_efforts || []).map(effort => ({
-      value: effort,
-      label: effort,
-      disabled: !!selected && !selected.efforts.includes(effort),
-    })),
-    config.effort
-  );
-
-  fillSelect(
     cfgEls.interval(),
     (options.available_polling_intervals || []).map(m => ({ value: m, label: fmtInterval(m) })),
     config.polling_interval_minutes
@@ -452,13 +419,9 @@ function renderConfig() {
 function absorbConfig(body) {
   config = {
     shadow_mode: body.shadow_mode,
-    model: body.model,
-    effort: body.effort,
     polling_interval_minutes: body.polling_interval_minutes,
   };
   options = {
-    available_models: body.available_models,
-    available_efforts: body.available_efforts,
     available_polling_intervals: body.available_polling_intervals,
   };
 }
@@ -518,21 +481,6 @@ async function saveConfig(patch) {
 function wireConfigControls() {
   cfgEls.shadow().addEventListener("change", event => {
     saveConfig({ shadow_mode: event.target.checked });
-  });
-
-  cfgEls.model().addEventListener("change", event => {
-    const model = event.target.value;
-    const picked = modelOption(model);
-    // A model that does not accept the current effort would have the whole PUT
-    // rejected, so send the model's own default alongside it.
-    const effort = picked && !picked.efforts.includes(config.effort)
-      ? picked.default_effort
-      : config.effort;
-    saveConfig({ model: model, effort: effort });
-  });
-
-  cfgEls.effort().addEventListener("change", event => {
-    saveConfig({ effort: event.target.value });
   });
 
   cfgEls.interval().addEventListener("change", event => {

@@ -19,12 +19,10 @@ from ..utils.thread_ops import langgraph_client
 from .options import (
     SUPPORTED_MODEL_IDS,
     canonical_model_pair,
-    gate_fable_model,
     model_supports_effort,
 )
 from .profiles import get_profile, get_valid_access_token
 from .repo_access import repo_config_for_user, require_repo_access_for_user
-from .team_settings import get_team_fable_enabled
 from .thread_api import _agent_version_metadata, _now_ms, _resolve_run_email
 from .user_mappings import slack_id_for_login
 
@@ -456,13 +454,8 @@ async def _agent_run_config(
         configurable["repo"] = repo
     if slack_thread:
         configurable["slack_thread"] = slack_thread
-    model, effort = _normalize_model_choice(record.get("model"), record.get("effort"))
-    if model and effort:
-        model, effort = gate_fable_model(
-            model, effort, fable_enabled=await get_team_fable_enabled()
-        )
-        configurable["agent_model_id"] = model
-        configurable["agent_effort"] = effort
+    # A schedule's stored model/effort is kept for display only: the model a
+    # run uses now comes from the router, per agent role.
     return {"configurable": configurable, "metadata": _agent_version_metadata()}
 
 

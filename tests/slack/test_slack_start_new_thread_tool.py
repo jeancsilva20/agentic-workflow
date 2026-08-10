@@ -165,7 +165,9 @@ async def test_slack_start_new_thread_success(monkeypatch: pytest.MonkeyPatch) -
     assert dispatch["configurable"]["slack_thread"]["thread_ts"] == new_ts
     assert dispatch["configurable"]["repo"] == {"owner": "langchain-ai", "name": "open-swe"}
     assert dispatch["configurable"]["github_login"] == "alice"
-    assert dispatch["configurable"]["agent_model_id"] == "anthropic:claude-sonnet-4-5"
+    # A breakout carries identity, not a model: the router picks that per role.
+    assert "agent_model_id" not in dispatch["configurable"]
+    assert "agent_effort" not in dispatch["configurable"]
     assert "Breakout Instructions" in dispatch["content"]
     assert "## Open SWE Links" in dispatch["content"]
     assert f"- Web: https://dashboard.example/agents/{expected_thread_id}" in dispatch["content"]

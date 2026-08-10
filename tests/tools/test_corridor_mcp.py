@@ -155,12 +155,6 @@ async def test_get_agent_passes_corridor_prompt_state() -> None:
                 new_callable=AsyncMock,
                 return_value="/workspace",
             ),
-            patch.object(
-                server,
-                "get_team_default_model_pair",
-                new_callable=AsyncMock,
-                return_value=(("openai:gpt-5.6-sol", "medium"), ("openai:gpt-5.6-sol", "low")),
-            ),
             patch.object(server, "fallback_model_id_for", return_value=None),
             patch.object(server, "make_model", return_value=MagicMock()),
             patch.object(

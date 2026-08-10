@@ -17,12 +17,11 @@ from langgraph_sdk.client import LangGraphClient
 
 from ..dashboard.agent_overrides import (
     get_profile_default_repo,
-    resolve_agent_model_id,  # noqa: F401
     resolve_login_from_email_async,
 )
 from ..dashboard.enabled_repos import is_review_repo_enabled
 from ..dashboard.oauth import build_settings_url
-from ..dashboard.options import default_vision_model_pair, model_supports_images  # noqa: F401
+from ..dashboard.options import model_supports_images  # noqa: F401
 from ..dashboard.profiles import (  # noqa: F401
     get_profile,
     get_valid_access_token,
@@ -189,7 +188,6 @@ __all__ = [
     "dashboard_thread_url",
     "decide_workflow_push_approval",
     "dedupe_urls",
-    "default_vision_model_pair",
     "dispatch_agent_run",
     "email_for_login",
     "extract_image_urls",
@@ -242,7 +240,6 @@ __all__ = [
     "react_to_linear_comment",
     "reconcile_findings_with_review_threads",
     "refresh_user_mapping_cache",
-    "resolve_agent_model_id",
     "resolve_login_from_email_async",
     "resolve_slack_links_in_context",
     "sanitize_github_comment_body",

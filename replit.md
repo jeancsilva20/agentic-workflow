@@ -67,9 +67,10 @@ Existe um `agent-console/` na raiz do repositório pai que é um protótipo anti
 - ❌ Nunca validado com LLM real processando um card pelos 11 PASSOs
 - ❌ Fluxo de PR real nunca testado
 - ❌ Métricas LangSmith incompletas (tasks.md §10.1)
-- ✅ Config operacional em runtime pelo console (`shadow_mode`, `model`, `effort`, `polling_interval_minutes`) — persistida em `agent-console/data/operational_config.json`, sem restart; env vars viraram apenas o default
+- ✅ Config operacional em runtime pelo console (`shadow_mode`, `polling_interval_minutes`) — persistida em `agent-console/data/operational_config.json`, sem restart; env vars viraram apenas o default
+- ✅ Model Router automático por papel de agente (`agent/routing`) — modelo e effort deixaram de ser configuráveis (nem console, nem perfil, nem por thread); o papel de cada execução vem da coluna Jira em que o poller retomou o card (`agent/routing/phases.py`); tabela exposta em `GET /api/config/routing`, com `active`/`selected_by` por papel
 - ❌ Botão de pausa (`JIRA_POLLER_PAUSED`) no console web não existe (só env var)
-- ✅ UI do console renomeada para "Sensedia Agentic Workflow" com painel "Agent Configuration" (toggle shadow mode + selects de modelo/effort/intervalo) e indicador SHADOW MODE / LIVE EXECUTION no header
+- ✅ UI do console renomeada para "Sensedia Agentic Workflow" com painel "Agent Configuration" (toggle shadow mode + select de intervalo) e indicador SHADOW MODE / LIVE EXECUTION no header
 - ✅ Logo horizontal color oficial da Sensedia está em `agent-console/static/sensedia-logo.svg`
 
 ## User preferences

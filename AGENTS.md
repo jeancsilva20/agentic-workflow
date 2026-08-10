@@ -99,13 +99,44 @@ Reviewer-only tools (in `agent/reviewer.py`): `add_finding`, `update_finding`, `
 
 Built-in deepagents tools (`read_file`, `write_file`, `edit_file`, `delete`, `ls`, `glob`, `grep`, `execute`, `task` for subagent spawning, …) are added by `create_deep_agent` itself; don't duplicate them.
 
-### Models, profiles, and team defaults
+### Model routing
 
-Model + reasoning effort are resolved per run in this precedence (highest wins):
+Model + reasoning effort are **not** configurable per run. `agent/routing` decides
+both from the agent role: `resolve_model(role, complexity, retry_count, workflow_context)`
+returns a `ModelConfig(model, effort, reason)`. Roles are the `AgentRole` enum
+(`jira_triage`, `spec_author`, `coding_agent`, `code_reviewer`, `docs_agent`, …).
 
-1. Per-thread config (`agent_model_id` + `agent_effort` in `configurable`) — set by webhooks/UI.
-2. Per-user dashboard profile override (`agent/dashboard/agent_overrides.py:load_profile`), keyed by resolved GitHub login.
-3. Team default model (`agent/dashboard/team_settings.py:get_team_default_model("agent")`).
+- Cheap, mechanical roles run Haiku with no effort; authoring and verification run
+  Sonnet/high; reviewing and escalation run Opus/high.
+- `coding_agent` / `code_adjuster` start at Sonnet/medium and escalate to Opus/high
+  after two failed attempts, at `CRITICAL` complexity, or at `HIGH` complexity with a
+  risk signal (auth, migration, security, concurrency). The `escalation_reason` is
+  always recorded on the decision.
+- Complexity is deterministic (`agent/routing/complexity.py`) — file counts, risk
+  signals, retries and review returns. No LLM call.
+- Effort is guarded against `agent/routing/capabilities.py`, derived from the model
+  catalog: a model that does not advertise the routed effort gets none rather than a
+  substituted level.
+
+Which role a run is routed as is decided once per dispatch, from the Jira column the
+poller resumed the card at (`agent/routing/phases.py`): the trigger column is spec
+authoring, the adjust columns are the matching adjuster, the pre-merge column is
+OpenSpec verification, and a merged card is archiving. A run with no Jira column —
+dashboard, Slack, Linear, PR comment — is `coding_agent`. The reviewer selects
+`code_reviewer` and `diff_grouping` itself; the PR review chat runs as
+`review_chat` and the review-style analyzer as `style_analyzer`. Nothing outside
+`agent/routing` may pick a model: not a request field, not a dashboard profile,
+not a team default.
+
+Because the workflow is one deep agent per dispatch rather than one graph node per
+phase, some roles in the enum are not selected by anything yet (`jira_triage`,
+`python_harness`, `spec_reviewer`, `docs_agent`, `escalation_agent`) — those phases
+happen inside another role's run. `GET /api/config/routing` marks each row `active`
+and says what selects it, so the table is never read as more than it is.
+
+There is no override: not per thread, not per profile, not per team, not from the
+console. Dashboard profile model fields still exist for display, but they no longer
+steer a run.
 
 Custom instructions are layered into the system prompt from two stores: per-repo (`agent/dashboard/agent_instructions.py`, edited on the Repository Instructions page) and per-user (`agent/dashboard/user_instructions.py`, edited in the dashboard Profile tab or by the agent itself via `save_user_instructions`). Repo instructions and `AGENTS.md` win over user-level ones on conflict.
 

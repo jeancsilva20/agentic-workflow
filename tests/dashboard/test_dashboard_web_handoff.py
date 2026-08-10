@@ -350,8 +350,6 @@ async def test_dashboard_followup_on_busy_text_only_thread_rejects_images(
             thread_api.ThreadMessageBody(
                 content="continue in web",
                 images=[thread_api.DashboardImageBody(base64="aW1hZ2U=", mimeType="image/png")],
-                model_id="openai:gpt-5.6-sol",
-                effort="medium",
             ),
         )
 

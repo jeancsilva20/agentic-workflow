@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from langchain_core.messages.content import ImageContentBlock, create_image_block
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..routing import AgentRole, resolve_model
 from ..utils.dashboard_handoff import DASHBOARD_HANDOFF_INSTRUCTION
 from ..utils.json_types import (
     JsonObject,
@@ -33,18 +34,13 @@ from ..utils.thread_ops import (
     langgraph_url,
     queue_message_for_thread,
 )
-from .agent_overrides import normalize_profile_overrides
 from .options import (
     SUPPORTED_MODEL_IDS,
     canonical_model_pair,
-    default_vision_model_pair,
-    gate_fable_model,
-    model_supports_effort,
     model_supports_images,
 )
 from .pr_diff import build_pr_diff_files
 from .profiles import get_profile, get_valid_access_token
-from .team_settings import get_team_default_model, get_team_fable_enabled
 from .user_mappings import email_for_login
 
 logger = logging.getLogger(__name__)
@@ -137,8 +133,6 @@ class DashboardImageBody(BaseModel):
 class ThreadMessageBody(BaseModel):
     content: str = Field(default="", max_length=20_000)
     images: list[DashboardImageBody] = Field(default_factory=list)
-    model_id: str | None = None
-    effort: str | None = None
     plan_mode: bool = False
 
 
@@ -146,50 +140,16 @@ class ThreadResolveBody(BaseModel):
     resolved: bool = True
 
 
-def _normalize_model_choice(
-    model_id: str | None, effort: str | None
-) -> tuple[str | None, str | None]:
-    if not isinstance(model_id, str):
-        return None, None
-    if model_id not in SUPPORTED_MODEL_IDS:
-        canonical = canonical_model_pair(model_id, effort)
-        return canonical if canonical is not None else (None, None)
-    if not isinstance(effort, str) or not model_supports_effort(model_id, effort):
-        return None, None
-    return model_id, effort
+def _routed_run_model() -> tuple[str, str | None]:
+    """The model a dashboard run will actually use, for validation and display.
 
-
-async def _resolve_agent_model_choice(
-    profile: dict[str, Any],
-    model_id: str | None,
-    effort: str | None,
-) -> tuple[str, str]:
-    resolved_model, resolved_effort = await get_team_default_model("agent")
-    profile_model, profile_effort = normalize_profile_overrides(profile)
-    if profile_model and profile_effort:
-        resolved_model, resolved_effort = profile_model, profile_effort
-    chosen_model, chosen_effort = _normalize_model_choice(model_id, effort)
-    if chosen_model and chosen_effort:
-        resolved_model, resolved_effort = chosen_model, chosen_effort
-    resolved_model, resolved_effort = gate_fable_model(
-        resolved_model, resolved_effort, fable_enabled=await get_team_fable_enabled()
-    )
-    if not isinstance(resolved_effort, str):
-        raise ValueError("team default model must include a reasoning effort")
-    return resolved_model, resolved_effort
-
-
-def _with_vision_fallback(model_id: str, effort: str, *, has_images: bool) -> tuple[str, str]:
-    if not has_images or model_supports_images(model_id):
-        return model_id, effort
-    fallback_model_id, fallback_effort = default_vision_model_pair()
-    logger.info(
-        "Using vision fallback model %s for dashboard image input; configured model %s "
-        "does not support images",
-        fallback_model_id,
-        model_id,
-    )
-    return fallback_model_id, fallback_effort
+    Images have to be checked against the model that will receive them, and the
+    router — not the profile, not a picker — is what decides that. Keeping the
+    two in one place is why there is no vision fallback here any more: a
+    fallback would swap a model that no longer steers the run.
+    """
+    route = resolve_model(AgentRole.CODING_AGENT)
+    return route.model, route.effort
 
 
 def _now_ms() -> int:
@@ -1069,27 +1029,15 @@ async def _create_dashboard_thread_record(
     prompt: str,
     images: list[DashboardImageBody] | None = None,
     title: str | None = None,
-    model_id: str | None = None,
-    effort: str | None = None,
     plan_mode: bool = False,
 ) -> dict[str, Any]:
     """Create or update dashboard thread metadata without starting a run."""
     profile = await get_profile(login) or {}
     now_ms = _now_ms()
     prompt = prompt.strip()
-    resolved_model, resolved_effort = await _resolve_agent_model_choice(profile, model_id, effort)
-    resolved_model, resolved_effort = _with_vision_fallback(
-        resolved_model,
-        resolved_effort,
-        has_images=bool(images),
-    )
+    resolved_model, resolved_effort = _routed_run_model()
     _user_message_content(prompt, images or [], model_id=resolved_model)
-    chosen_model, chosen_effort = _normalize_model_choice(model_id, effort)
-    metadata_model = chosen_model or profile.get("default_model") or "Default"
-    metadata_effort = chosen_effort or profile.get("reasoning_effort")
-    if images and not model_supports_images(str(metadata_model)):
-        metadata_model = resolved_model
-        metadata_effort = resolved_effort
+    metadata_model, metadata_effort = resolved_model, resolved_effort
     has_repo = bool(repo_config.get("owner") and repo_config.get("name"))
     metadata: dict[str, Any] = {
         "source": _DASHBOARD_SOURCE,
@@ -1131,7 +1079,6 @@ async def _build_dashboard_configurable(
     metadata: Mapping[str, Any],
     *,
     profile: dict[str, Any] | None = None,
-    overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     profile = profile if profile is not None else await get_profile(login) or {}
     thread_source = _thread_source(metadata)
@@ -1152,10 +1099,6 @@ async def _build_dashboard_configurable(
             configurable.setdefault(key, value)
     if metadata.get("plan_mode") is True:
         configurable["plan_mode"] = True
-    if overrides:
-        for key, value in overrides.items():
-            if value is not None:
-                configurable[key] = value
     return configurable
 
 
@@ -1297,14 +1240,9 @@ async def _enrich_run_start_command(
     if not isinstance(client_configurable, dict):
         client_configurable = {}
 
-    chosen_model, chosen_effort = _normalize_model_choice(
-        client_configurable.get("agent_model_id"),
-        client_configurable.get("agent_effort"),
-    )
     plan_mode_requested = client_configurable.get("plan_mode") is True
     content = _command_message_content(params)
     command_images = _dashboard_images_from_content(content)
-    overrides: dict[str, Any] = {}
 
     if creating:
         # First ``run.start`` for a client-minted thread id: stamp the full
@@ -1320,31 +1258,11 @@ async def _enrich_run_start_command(
             repo_explicitly_none=client_configurable.get("repo_explicitly_none") is True,
             prompt=_command_prompt_text(content),
             images=command_images,
-            model_id=client_configurable.get("agent_model_id"),
-            effort=client_configurable.get("agent_effort"),
             plan_mode=plan_mode_requested,
         )
         metadata = thread_metadata(thread)
-        if command_images:
-            resolved_model = metadata.get("resolved_model")
-            resolved_effort = metadata.get("resolved_effort")
-            if isinstance(resolved_model, str) and isinstance(resolved_effort, str):
-                overrides["agent_model_id"] = resolved_model
-                overrides["agent_effort"] = resolved_effort
-        elif chosen_model and chosen_effort:
-            overrides["agent_model_id"] = chosen_model
-            overrides["agent_effort"] = chosen_effort
     else:
-        run_model = chosen_model or _metadata_model_id(metadata)
-        run_effort = chosen_effort
-        if not run_effort:
-            for key in ("resolved_effort", "effort"):
-                value = metadata.get(key)
-                if isinstance(value, str):
-                    run_effort = value
-                    break
-        if command_images and run_model and run_effort:
-            run_model, run_effort = _with_vision_fallback(run_model, run_effort, has_images=True)
+        run_model, run_effort = _routed_run_model()
         _validate_command_images(content, model_id=run_model)
         prefix = _attribution_prefix(metadata, login, email)
         if prefix:
@@ -1352,19 +1270,15 @@ async def _enrich_run_start_command(
         if metadata.get("source") == "slack":
             content = _prepend_message_content_block(content, DASHBOARD_HANDOFF_INSTRUCTION)
         _set_command_last_message_content(params, content)
-        metadata_update: dict[str, Any] = {"plan_mode": plan_mode_requested}
-        if command_images and run_model and run_effort:
-            overrides["agent_model_id"] = run_model
-            overrides["agent_effort"] = run_effort
-            metadata_update["model"] = run_model
-            metadata_update["effort"] = run_effort
-            metadata_update["resolved_model"] = run_model
-            metadata_update["resolved_effort"] = run_effort
-        elif chosen_model and chosen_effort:
-            overrides["agent_model_id"] = chosen_model
-            overrides["agent_effort"] = chosen_effort
-            metadata_update["model"] = chosen_model
-            metadata_update["effort"] = chosen_effort
+        metadata_update: dict[str, Any] = {
+            "plan_mode": plan_mode_requested,
+            # Recorded for the dashboard to display and for the queued-message
+            # middleware to check images against — the same pair the run gets.
+            "model": run_model,
+            "effort": run_effort,
+            "resolved_model": run_model,
+            "resolved_effort": run_effort,
+        }
         if _is_thread_resolved(metadata):
             metadata_update["resolved"] = False
             metadata_update["resolved_at_ms"] = None
@@ -1373,12 +1287,7 @@ async def _enrich_run_start_command(
             metadata = {**metadata, **metadata_update}
             await client.threads.update(thread_id=thread_id, metadata=metadata)
 
-    merged_configurable = await _build_dashboard_configurable(
-        thread_id,
-        login,
-        metadata,
-        overrides=overrides,
-    )
+    merged_configurable = await _build_dashboard_configurable(thread_id, login, metadata)
 
     run_metadata = params.get("metadata")
     if not isinstance(run_metadata, dict):
@@ -1447,16 +1356,12 @@ async def send_dashboard_message(
 
     prompt = f"{_attribution_prefix(metadata, login, email)}{body.content.strip()}"
     now_ms = _now_ms()
-    chosen_model, chosen_effort = _normalize_model_choice(body.model_id, body.effort)
     handoff_metadata = dict(metadata)
     metadata_update: dict[str, Any] = {
         "source": _DASHBOARD_SOURCE,
         "updated_at_ms": now_ms,
         "plan_mode": body.plan_mode,
     }
-    if chosen_model and chosen_effort:
-        metadata_update["model"] = chosen_model
-        metadata_update["effort"] = chosen_effort
     if _is_thread_resolved(metadata):
         metadata_update["resolved"] = False
         metadata_update["resolved_at_ms"] = None

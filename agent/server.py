@@ -13,7 +13,7 @@ import os
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -44,26 +44,16 @@ from langsmith.sandbox import SandboxClientError
 from .dashboard.admin import is_observability_authorized
 from .dashboard.agent_overrides import (
     load_profile,
-    normalize_profile_overrides,
-    normalize_profile_subagent_overrides,
     profile_create_prs,
     profile_draft_prs,
     resolve_github_login,
 )
 from .dashboard.agent_usage import record_agent_thread_usage
-from .dashboard.options import (
-    SUPPORTED_MODEL_IDS,
-    canonical_model_pair,
-    gate_fable_model,
-    model_supports_effort,
-)
 from .dashboard.repo_snapshots import resolve_repo_snapshot_id
 from .dashboard.skills import SKILLS_NAMESPACE
 from .dashboard.team_settings import (
     get_effective_gateway_enabled,
-    get_team_default_model_pair,
     get_team_default_repo,
-    get_team_fable_enabled,
 )
 from .dashboard.user_mappings import email_for_login
 from .integrations.corridor_mcp import load_corridor_tools
@@ -97,6 +87,8 @@ from .middleware import (
 from .middleware.prepare_run import PrepareRunState
 from .middleware.sandbox_circuit_breaker import post_sandbox_unreachable_notification
 from .prompt import OPEN_SWE_SHARED_BASE, construct_system_prompt
+from .routing import AgentRole, resolve_model
+from .routing.phases import DEFAULT_DISPATCH_ROLE, role_for_column
 from .runtime.constants import (
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_RECURSION_LIMIT,
@@ -769,27 +761,11 @@ async def _load_corridor_mcp_tools() -> list[Any]:
     )
 
 
-async def _cached_team_default_model_pair(kind: Literal["agent", "reviewer"]):
-    return await ttl_cache.cached(
-        f"team-default-model-pair:{kind}:{id(get_team_default_model_pair)}",
-        60,
-        lambda: get_team_default_model_pair(kind),
-    )
-
-
 async def _cached_gateway_enabled() -> bool:
     return await ttl_cache.cached(
         f"team:gateway-enabled:{id(get_effective_gateway_enabled)}",
         60,
         get_effective_gateway_enabled,
-    )
-
-
-async def _cached_fable_enabled() -> bool:
-    return await ttl_cache.cached(
-        f"team:fable-enabled:{id(get_team_fable_enabled)}",
-        60,
-        get_team_fable_enabled,
     )
 
 
@@ -812,6 +788,60 @@ def _make_model_or_defer(
     except Exception as e:  # noqa: BLE001
         logger.warning("Deferring model setup failure for %s", model_id, exc_info=True)
         return make_deferred_error_model(e, model_id=model_id)
+
+
+# `log_review_cycle` records the highest self-review pass per phase on the
+# thread. The first pass is not a retry — it is the review every change gets —
+# so only the passes after it count as work coming back.
+_REVIEW_CYCLE_METADATA_KEYS = ("jira_review_cycles_code", "jira_review_cycles_spec")
+
+# Anything the workflow learns about a change (files touched, whether it moves
+# a migration or touches auth) is written here, on the thread, rather than
+# passed per run: the router is called on every graph build, including resumes
+# that carry no such context of their own.
+ROUTING_SIGNALS_KEY = "routing_signals"
+
+
+def _positive_int(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(0, value)
+
+
+def _dispatch_role(config: RunnableConfig, configurable: dict[str, Any]) -> AgentRole:
+    """Which phase of the workflow this run has to cover.
+
+    The poller says which column it resumed the card from; that column is the
+    instruction the run follows, so it is also what decides the route. A run
+    with no column — dashboard, Slack, Linear, a PR comment — is coding work.
+    """
+    metadata = as_json_object(config.get("metadata"))
+    for source in (configurable.get("jira_new_column"), metadata.get("jira_column")):
+        role = role_for_column(source if isinstance(source, str) else None)
+        if role is not None:
+            return role
+    return DEFAULT_DISPATCH_ROLE
+
+
+def _routing_signals(config: RunnableConfig, configurable: dict[str, Any]) -> dict[str, Any]:
+    """Complexity signals for this thread, for :func:`resolve_model`.
+
+    Explicit signals win over derived ones: a caller that already knows the
+    change touches auth should not have that overwritten by a counter.
+    """
+    metadata = as_json_object(config.get("metadata"))
+    signals: dict[str, Any] = {
+        **as_json_object(metadata.get(ROUTING_SIGNALS_KEY)),
+        **as_json_object(configurable.get(ROUTING_SIGNALS_KEY)),
+    }
+
+    review_cycles = max(
+        (_positive_int(metadata.get(key)) for key in _REVIEW_CYCLE_METADATA_KEYS), default=0
+    )
+    returns = max(0, review_cycles - 1)
+    signals.setdefault("retry_count", returns)
+    signals.setdefault("review_return_count", returns)
+    return signals
 
 
 class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
@@ -987,11 +1017,9 @@ async def get_agent(config: RunnableConfig) -> Pregel:
     profile_login = resolve_github_login(as_json_object(config))
     # Team/profile settings are accepted stale for a short TTL so graph factories
     # stay off the critical path during worker load and retry storms.
-    team_defaults, use_gateway, profile, fable_enabled = await asyncio.gather(
-        _cached_team_default_model_pair("agent"),
+    use_gateway, profile = await asyncio.gather(
         _cached_gateway_enabled(),
         _cached_profile(profile_login),
-        _cached_fable_enabled(),
     )
 
     linear_issue = as_json_object(configurable.get("linear_issue"))
@@ -1009,67 +1037,32 @@ async def get_agent(config: RunnableConfig) -> Pregel:
 
     backend = _get_cached_sandbox_backend(thread_id, reconnect=reconnect_backend)
 
-    (model_id, profile_effort), (subagent_model_id, subagent_effort) = team_defaults
-    logger.info("Using team default agent model: model=%s effort=%s", model_id, profile_effort)
-
-    if profile_login and profile:
-        overridden_model, overridden_effort = normalize_profile_overrides(profile)
-        if overridden_model:
-            logger.info(
-                "Applying dashboard profile override for %s: model=%s effort=%s",
-                profile_login,
-                overridden_model,
-                overridden_effort,
-            )
-            model_id = overridden_model
-            profile_effort = overridden_effort
-            subagent_model_id = overridden_model
-            subagent_effort = overridden_effort
-        overridden_subagent_model, overridden_subagent_effort = (
-            normalize_profile_subagent_overrides(profile)
-        )
-        if overridden_subagent_model:
-            logger.info(
-                "Applying dashboard profile subagent override for %s: model=%s effort=%s",
-                profile_login,
-                overridden_subagent_model,
-                overridden_subagent_effort,
-            )
-            subagent_model_id = overridden_subagent_model
-            subagent_effort = overridden_subagent_effort
-
-    per_thread_model = configurable.get("agent_model_id")
-    per_thread_effort = configurable.get("agent_effort")
-    canonical_per_thread = canonical_model_pair(per_thread_model, per_thread_effort)
-    if canonical_per_thread is not None:
-        per_thread_model, per_thread_effort = canonical_per_thread
-    if (
-        isinstance(per_thread_model, str)
-        and per_thread_model in SUPPORTED_MODEL_IDS
-        and isinstance(per_thread_effort, str)
-        and model_supports_effort(per_thread_model, per_thread_effort)
-    ):
-        logger.info(
-            "Applying per-thread model override: model=%s effort=%s",
-            per_thread_model,
-            per_thread_effort,
-        )
-        model_id = per_thread_model
-        profile_effort = per_thread_effort
-        subagent_model_id = per_thread_model
-        subagent_effort = per_thread_effort
+    routing_signals = _routing_signals(config, configurable)
+    route = resolve_model(
+        _dispatch_role(config, configurable),
+        retry_count=int(routing_signals.get("retry_count") or 0),
+        workflow_context=routing_signals,
+    )
+    model_id = route.model
+    profile_effort = route.effort
+    logger.info(
+        "Routed %s: model=%s effort=%s complexity=%s reason=%s",
+        route.role.value,
+        route.model,
+        route.effort,
+        route.complexity.value,
+        route.reason,
+    )
+    # The general-purpose subagent is the parent's own hands — same role, so
+    # same route. Giving it a cheaper model would let it hand back work the
+    # parent then has to redo.
+    subagent_model_id = route.model
+    subagent_effort = route.effort
 
     always_create_prs = profile_create_prs(profile)
     draft_prs = profile_draft_prs(profile)
     if always_create_prs:
         logger.info("Always Create PRs enabled by profile for %s", profile_login)
-
-    model_id, profile_effort = gate_fable_model(
-        model_id, profile_effort, fable_enabled=fable_enabled
-    )
-    subagent_model_id, subagent_effort = gate_fable_model(
-        subagent_model_id, subagent_effort, fable_enabled=fable_enabled
-    )
 
     model_kwargs = provider_model_kwargs(
         model_id,

@@ -30,20 +30,12 @@ const TEMPLATE_PATH = join(
 );
 const TEMPLATE_HTML = readFileSync(TEMPLATE_PATH, "utf8");
 
-const HAIKU = "anthropic:claude-haiku-4-5-20251001";
-const SOL = "openai:gpt-5.6-sol";
-
-/** Shape mirrors GET /api/config: current values plus the option catalogs. */
+/** Shape mirrors GET /api/config: current values plus the option catalogs.
+ *  Model and effort are absent on purpose — the router picks them per agent
+ *  role, so the console has nothing to offer the operator there. */
 const BACKEND_CONFIG = {
   shadow_mode: true,
-  model: HAIKU,
-  effort: "low",
   polling_interval_minutes: 1,
-  available_models: [
-    { id: HAIKU, label: "Claude Haiku 4.5", efforts: ["low", "medium", "high"], default_effort: "low" },
-    { id: SOL, label: "GPT-5.6 Sol", efforts: ["none", "medium", "high"], default_effort: "high" },
-  ],
-  available_efforts: ["none", "low", "medium", "high"],
   available_polling_intervals: [1, 5, 10, 30, 60],
 };
 
@@ -160,18 +152,16 @@ test("header renders the Sensedia logo slot before the name", async () => {
 
 /** 3. Every control starts from the backend, never from a hardcoded default. */
 test("controls are inert until the backend answers, then show its values", async () => {
-  const ui = boot({ config: { model: SOL, effort: "medium", polling_interval_minutes: 30 } });
+  const ui = boot({ config: { polling_interval_minutes: 30 } });
 
   // Before the first response nothing is editable and no value is implied.
-  assert.equal(ui.$("cfg-model").disabled, true);
-  assert.equal(ui.$("cfg-model").options.length, 0);
+  assert.equal(ui.$("cfg-interval").disabled, true);
+  assert.equal(ui.$("cfg-interval").options.length, 0);
   assert.equal(ui.$("shadow-indicator").className, "shadow-indicator unknown");
 
   await ui.settle();
 
-  assert.equal(ui.$("cfg-model").disabled, false);
-  assert.equal(ui.$("cfg-model").value, SOL);
-  assert.equal(ui.$("cfg-effort").value, "medium");
+  assert.equal(ui.$("cfg-interval").disabled, false);
   assert.equal(ui.$("cfg-interval").value, "30");
   assert.equal(ui.$("cfg-shadow").checked, true);
   ui.close();
@@ -200,28 +190,13 @@ test("shadow indicator distinguishes shadow mode from live execution", async () 
   live.close();
 });
 
-/** 5. The model list comes from the backend, keeping technical ids as values. */
-test("model dropdown is built from available_models", async () => {
+/** 5. Model and effort are not operator settings any more. */
+test("the panel offers no model or effort control", async () => {
   const ui = boot();
   await ui.settle();
 
-  assert.deepEqual(ui.optionValues("cfg-model"), [HAIKU, SOL]);
-  assert.deepEqual(
-    [...ui.$("cfg-model").options].map((o) => o.textContent),
-    ["Claude Haiku 4.5", "GPT-5.6 Sol"],
-  );
-  ui.close();
-});
-
-/** 6. Effort options come from the backend; the model gates which are usable. */
-test("effort dropdown is built from available_efforts and respects the model", async () => {
-  const ui = boot();
-  await ui.settle();
-
-  assert.deepEqual(ui.optionValues("cfg-effort"), ["none", "low", "medium", "high"]);
-  // Haiku does not accept "none": offered by the catalog, not selectable here.
-  const disabled = [...ui.$("cfg-effort").options].filter((o) => o.disabled).map((o) => o.value);
-  assert.deepEqual(disabled, ["none"]);
+  assert.equal(ui.$("cfg-model"), null);
+  assert.equal(ui.$("cfg-effort"), null);
   ui.close();
 });
 
@@ -252,7 +227,7 @@ test("changing a control shows a saving state and blocks concurrent saves", asyn
   assert.equal(ui.$("cfg-status").textContent, "Saving…");
   assert.ok(ui.$("cfg-status").classList.contains("saving"));
   assert.equal(ui.$("cfg-interval").disabled, true);
-  assert.equal(ui.$("cfg-model").disabled, true, "other controls are locked while a save runs");
+  assert.equal(ui.$("cfg-shadow").disabled, true, "other controls are locked while a save runs");
 
   // A second change while the first is in flight must not reach the backend.
   ui.change("cfg-shadow", (el) => { el.checked = false; });
@@ -288,22 +263,22 @@ test("a successful save confirms and keeps the new value", async () => {
 test("a rejected save shows the backend error message", async () => {
   const ui = boot({
     putHandler: async () =>
-      jsonResponse({ error: "effort 'none' is not supported by model 'anthropic:claude-haiku-4-5-20251001'" }, 400),
+      jsonResponse({ error: "polling_interval_minutes must be one of 1, 5, 10, 30, 60" }, 400),
   });
   await ui.settle();
 
-  ui.change("cfg-effort", (el) => { el.value = "none"; });
+  ui.change("cfg-interval", (el) => { el.value = "10"; });
   await ui.settle();
 
   assert.ok(ui.$("cfg-status").classList.contains("error"));
-  assert.match(ui.$("cfg-status").textContent, /not supported by model/);
+  assert.match(ui.$("cfg-status").textContent, /must be one of/);
   ui.close();
 });
 
 /** 11. A failed save rolls the control back to the value actually in effect. */
 test("a failed save rolls every control back to the backend value", async () => {
   const ui = boot({
-    config: { shadow_mode: true, effort: "low", polling_interval_minutes: 1 },
+    config: { shadow_mode: true, polling_interval_minutes: 1 },
     putHandler: async () => { throw new Error("network down"); },
   });
   await ui.settle();
@@ -318,12 +293,8 @@ test("a failed save rolls every control back to the backend value", async () => 
   await ui.settle();
   assert.equal(ui.$("cfg-interval").value, "1");
 
-  ui.change("cfg-effort", (el) => { el.value = "high"; });
-  await ui.settle();
-  assert.equal(ui.$("cfg-effort").value, "low");
-
   assert.match(ui.$("cfg-status").textContent, /reverted/i);
-  assert.equal(ui.$("cfg-model").disabled, false, "controls are usable again after a failure");
+  assert.equal(ui.$("cfg-interval").disabled, false, "controls are usable again after a failure");
   ui.close();
 });
 
@@ -338,11 +309,10 @@ test("reloading the page renders the configuration the backend still holds", asy
 
   // Fresh page against a backend that meanwhile holds a different value —
   // what renders must be the backend's, not anything cached in the browser.
-  const reloaded = boot({ config: { polling_interval_minutes: 30, shadow_mode: false, effort: "high" } });
+  const reloaded = boot({ config: { polling_interval_minutes: 30, shadow_mode: false } });
   await reloaded.settle();
 
   assert.equal(reloaded.$("cfg-interval").value, "30");
-  assert.equal(reloaded.$("cfg-effort").value, "high");
   assert.equal(reloaded.$("cfg-shadow").checked, false);
   reloaded.close();
 });

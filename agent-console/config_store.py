@@ -1,9 +1,12 @@
 """Operational runtime configuration owned by the console (write side).
 
-Four values an operator needs to change without a redeploy: shadow mode, the
-agent model, its reasoning effort, and the poller's tick interval. Until now
-each was read once from an environment variable at import time, so changing any
-of them meant restarting the LangGraph server.
+Two values an operator needs to change without a redeploy: shadow mode and the
+poller's tick interval. Both were read once from an environment variable at
+import time, so changing either meant restarting the LangGraph server.
+
+Model and reasoning effort used to live here too, as a single global pair. They
+do not any more: the model a run uses is decided per agent role by the router
+(``agent.routing``), which no operator picks and no config file can override.
 
 This module holds the values in memory, seeds them from those same environment
 variables, and persists them to a small JSON file so a page refresh — or a
@@ -11,7 +14,7 @@ restart of either process — keeps what the operator selected. The poller reads
 that same file (``agent.operational_config``), which is why the path comes from
 there rather than being defined twice.
 
-Never contains a secret: the four fields are the whole schema, and anything
+Never contains a secret: the two fields are the whole schema, and anything
 else in a PUT is rejected rather than stored.
 """
 
@@ -28,18 +31,13 @@ from pathlib import Path
 from typing import Any
 
 # The console is a standalone Flask app in a hyphenated directory, so it can't
-# be a package — but the `agent/` package sits right next to it and owns both
-# the model catalog and the config file location. Importing it beats keeping a
-# second copy of either in sync by hand.
+# be a package — but the `agent/` package sits right next to it and owns the
+# config file location. Importing it beats keeping a second copy in sync by
+# hand.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from agent.dashboard.options import (  # noqa: E402
-    SUPPORTED_MODELS,
-    default_model_pair,
-    model_supports_effort,
-)
 from agent.operational_config import (  # noqa: E402
     VALID_POLLING_INTERVAL_MINUTES,
     operational_config_path,
@@ -47,35 +45,13 @@ from agent.operational_config import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FIELDS: tuple[str, ...] = ("shadow_mode", "model", "effort", "polling_interval_minutes")
-
-# Ordering for the effort list surfaced to clients: cheapest first, so a picker
-# reads as a ramp rather than in catalog order.
-_EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+CONFIG_FIELDS: tuple[str, ...] = ("shadow_mode", "polling_interval_minutes")
 
 _TRUTHY_ENV_VALUES = ("1", "true", "yes")
 
 
 class ConfigValidationError(ValueError):
     """A rejected update: the message is safe to return to the caller."""
-
-
-def available_models() -> list[dict[str, Any]]:
-    return [
-        {
-            "id": model["id"],
-            "label": model["label"],
-            "efforts": list(model["efforts"]),
-            "default_effort": model["default_effort"],
-        }
-        for model in SUPPORTED_MODELS
-    ]
-
-
-def available_efforts() -> list[str]:
-    efforts = {effort for model in SUPPORTED_MODELS for effort in model["efforts"]}
-    known = [effort for effort in _EFFORT_ORDER if effort in efforts]
-    return known + sorted(efforts - set(known))
 
 
 def available_polling_intervals() -> list[int]:
@@ -107,14 +83,6 @@ def _validate(values: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(shadow_mode, bool):
         raise ConfigValidationError("shadow_mode must be a boolean")
 
-    model = values.get("model")
-    if not isinstance(model, str) or not any(m["id"] == model for m in SUPPORTED_MODELS):
-        raise ConfigValidationError(f"unsupported model: {model!r}")
-
-    effort = values.get("effort")
-    if not isinstance(effort, str) or not model_supports_effort(model, effort):
-        raise ConfigValidationError(f"effort {effort!r} is not supported by model {model!r}")
-
     interval = values.get("polling_interval_minutes")
     if isinstance(interval, bool) or not isinstance(interval, int):
         raise ConfigValidationError("polling_interval_minutes must be an integer")
@@ -126,8 +94,6 @@ def _validate(values: Mapping[str, Any]) -> dict[str, Any]:
 
     return {
         "shadow_mode": shadow_mode,
-        "model": model,
-        "effort": effort,
         "polling_interval_minutes": interval,
     }
 
@@ -168,11 +134,7 @@ class OperationalConfig:
             return dict(self._values)
 
     def options(self) -> dict[str, Any]:
-        return {
-            "available_models": available_models(),
-            "available_efforts": available_efforts(),
-            "available_polling_intervals": available_polling_intervals(),
-        }
+        return {"available_polling_intervals": available_polling_intervals()}
 
     def reload(self) -> dict[str, Any]:
         """Re-read the file, discarding the in-memory copy (restart semantics)."""
@@ -234,11 +196,8 @@ class OperationalConfig:
     # --- persistence ----------------------------------------------------
 
     def _defaults(self) -> dict[str, Any]:
-        model, effort = default_model_pair()
         return {
             "shadow_mode": _env_shadow_mode(),
-            "model": model,
-            "effort": effort,
             "polling_interval_minutes": _env_polling_interval_minutes(),
         }
 

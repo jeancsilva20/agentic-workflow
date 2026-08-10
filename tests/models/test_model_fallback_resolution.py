@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agent.dashboard.agent_overrides import normalize_profile_overrides
 from agent.dashboard.options import (
     DEFAULT_MODEL_ID,
     FABLE_MODEL_IDS,
@@ -150,11 +149,6 @@ async def test_team_default_unknown_provider_falls_back_to_global() -> None:
         assert await get_team_default_model("reviewer") == default_model_pair()
 
 
-def test_profile_stale_anthropic_upgrades_to_supported() -> None:
-    profile = {"default_model": STALE_ANTHROPIC, "reasoning_effort": "high"}
-    assert normalize_profile_overrides(profile) == (SUPPORTED_ANTHROPIC, "high")
-
-
 def test_profile_update_defaults_draft_prs_to_none_for_legacy_clients() -> None:
     update = ProfileUpdate(default_model=SUPPORTED_OPENAI, reasoning_effort="medium")
 
@@ -200,15 +194,6 @@ def test_profile_response_migrates_deprecated_models() -> None:
     assert profile["reasoning_effort"] == "medium"
     assert profile["default_subagent_model"] == SUPPORTED_ANTHROPIC
     assert profile["subagent_reasoning_effort"] == "low"
-
-
-def test_profile_overrides_migrate_deprecated_models() -> None:
-    assert normalize_profile_overrides(
-        {"default_model": DEPRECATED_OPENAI, "reasoning_effort": "high"}
-    ) == (SUPPORTED_OPENAI, "high")
-    assert normalize_profile_overrides(
-        {"default_model": DEPRECATED_ANTHROPIC, "reasoning_effort": "max"}
-    ) == (SUPPORTED_ANTHROPIC, "max")
 
 
 def test_team_settings_update_migrates_deprecated_models() -> None:
@@ -265,15 +250,6 @@ def test_profile_update_rejects_unknown_provider() -> None:
     update = ProfileUpdate(default_model="mystery:model", reasoning_effort="high")
     with pytest.raises(ValueError, match="not supported"):
         update.validate_pairing()
-
-
-def test_profile_without_model_defers_to_team_default() -> None:
-    assert normalize_profile_overrides({"reasoning_effort": "high"}) == (None, None)
-
-
-def test_profile_unknown_provider_defers_to_team_default() -> None:
-    profile = {"default_model": "mystery:model", "reasoning_effort": "high"}
-    assert normalize_profile_overrides(profile) == (None, None)
 
 
 def test_global_default_is_gpt_5_6_sol() -> None:

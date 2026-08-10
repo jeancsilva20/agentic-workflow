@@ -115,9 +115,9 @@ including only renderable findings selected by `publish_review`. Set
 `score_mode = "all_findings"` only to diagnose deduplicated `add_finding`
 calls before publication.
 
-`model_id` and `reasoning_effort` in the config are passed to the reviewer run,
-so isolated benchmark deployments can test a specific model/effort without
-changing deployment-wide defaults.
+The reviewer's model is not an eval knob: it comes from the model router
+(`agent/routing`), which picks per agent role. An eval run therefore measures
+the same reviewer production runs get.
 
 ## Notes
 

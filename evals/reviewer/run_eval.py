@@ -50,8 +50,6 @@ _ENV_MAPPING: dict[str, str] = {
     "langgraph_url": "LANGGRAPH_URL",
     "langsmith_project": "LANGSMITH_PROJECT",
     "assistant_id": "REVIEWER_ASSISTANT_ID",
-    "model_id": "REVIEWER_EVAL_MODEL_ID",
-    "reasoning_effort": "REVIEWER_EVAL_REASONING_EFFORT",
     "score_mode": "REVIEWER_EVAL_SCORE_MODE",
     "severity_threshold": "REVIEWER_EVAL_SEVERITY_THRESHOLD",
     "cap": "REVIEWER_EVAL_CAP",
@@ -65,8 +63,6 @@ class ReviewerEvalConfig(TypedDict, total=False):
     langgraph_url: str
     langsmith_project: str
     assistant_id: str
-    model_id: str
-    reasoning_effort: str
     score_mode: ScoreMode
     severity_threshold: Severity
     cap: int
@@ -79,8 +75,6 @@ DEFAULT_CONFIG: ReviewerEvalConfig = {
     "langgraph_url": "",
     "langsmith_project": DEFAULT_LANGSMITH_PROJECT,
     "assistant_id": "reviewer",
-    "model_id": "google_genai:gemini-3.6-flash",
-    "reasoning_effort": "medium",
     "score_mode": "surfaced_findings",
     "severity_threshold": "low",
     "cap": REVIEW_FINDING_CAP,
@@ -123,14 +117,6 @@ def _coerce_config(raw: dict[str, Any]) -> ReviewerEvalConfig:
     assistant_id = raw.get("assistant_id")
     if isinstance(assistant_id, str) and assistant_id:
         config["assistant_id"] = assistant_id
-
-    model_id = raw.get("model_id")
-    if isinstance(model_id, str) and model_id:
-        config["model_id"] = model_id
-
-    reasoning_effort = raw.get("reasoning_effort")
-    if isinstance(reasoning_effort, str) and reasoning_effort:
-        config["reasoning_effort"] = reasoning_effort
 
     max_concurrency = raw.get("max_concurrency")
     if isinstance(max_concurrency, int) and max_concurrency > 0:
@@ -304,8 +290,6 @@ async def main() -> None:
     ap.add_argument("--langgraph-url", dest="langgraph_url")
     ap.add_argument("--langsmith-project", dest="langsmith_project")
     ap.add_argument("--assistant-id", dest="assistant_id")
-    ap.add_argument("--model-id", dest="model_id")
-    ap.add_argument("--reasoning-effort", dest="reasoning_effort")
     ap.add_argument("--score-mode", dest="score_mode", choices=sorted(_VALID_SCORE_MODES))
     ap.add_argument(
         "--severity-threshold",
@@ -327,13 +311,11 @@ async def main() -> None:
     max_concurrency = config["max_concurrency"]
     logger.info(
         "Starting reviewer eval: dataset=%s experiment_prefix=%s max_concurrency=%s "
-        "model=%s effort=%s score_mode=%s severity_threshold=%s cap=%s project=%s "
+        "score_mode=%s severity_threshold=%s cap=%s project=%s "
         "assistant_id=%s langgraph_url=%s limit=%s",
         dataset_name,
         experiment_prefix,
         max_concurrency,
-        config["model_id"],
-        config["reasoning_effort"],
         config["score_mode"],
         config["severity_threshold"],
         config["cap"],

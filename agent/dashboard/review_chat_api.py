@@ -24,7 +24,6 @@ from ..review.findings import REVIEWER_THREAD_KIND
 from ..utils.github_app import get_github_app_installation_token
 from ..utils.json_types import as_json_object
 from ..utils.thread_ops import langgraph_client, langgraph_url
-from .options import SUPPORTED_MODEL_IDS, canonical_model_pair, model_supports_effort
 from .review_api import classify_finding, get_pr_head_sha, get_review, reviewer_thread_id
 from .thread_api import (
     _DASHBOARD_STREAM_MODES,
@@ -303,22 +302,6 @@ async def _create_chat_thread(
     )
 
 
-def _normalize_chat_model(configurable: dict[str, Any]) -> tuple[str | None, str | None]:
-    model_id = configurable.get("chat_model_id")
-    effort = configurable.get("chat_effort")
-    if (
-        isinstance(model_id, str)
-        and model_id in SUPPORTED_MODEL_IDS
-        and isinstance(effort, str)
-        and model_supports_effort(model_id, effort)
-    ):
-        return model_id, effort
-    canonical = canonical_model_pair(model_id, effort)
-    if canonical is not None:
-        return canonical
-    return None, None
-
-
 async def _enrich_chat_command(
     command: dict[str, Any],
     *,
@@ -365,11 +348,6 @@ async def _enrich_chat_command(
         "chat_pr_number": pr_number,
         "reviewer_thread_id": reviewer_thread_id(owner, repo, pr_number),
     }
-    model_id, effort = _normalize_chat_model(client_configurable)
-    if model_id and effort:
-        configurable["chat_model_id"] = model_id
-        configurable["chat_effort"] = effort
-
     # Seed PR context on the thread's first run, and reseed whenever the PR head
     # has moved since the last seed — otherwise the chat keeps answering from a
     # stale diff/findings while the review page already shows the current head.

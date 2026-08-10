@@ -469,20 +469,9 @@ async def _process_slack_mention_impl(
     if not mapped_login and user_email:
         mapped_login = await common.login_for_email(user_email)
 
-    image_model_override: tuple[str, str] | None = None
     if image_urls:
-        resolved_model_id = await common.resolve_agent_model_id(mapped_login)
-        if not common.model_supports_images(resolved_model_id):
-            fallback_model_id, fallback_effort = common.default_vision_model_pair()
-            common.logger.info(
-                "Using vision fallback model %s for %d Slack image(s); configured model %s "
-                "does not support images",
-                fallback_model_id,
-                len(image_urls),
-                resolved_model_id,
-            )
-            resolved_model_id = fallback_model_id
-            image_model_override = (fallback_model_id, fallback_effort)
+        # No vision fallback to pick here: the model comes from the router,
+        # per agent role, and every model it routes to reads images.
         common.logger.info("Preparing %d image(s) for Slack mention", len(image_urls))
         async with httpx.AsyncClient(timeout=common.DEFAULT_HTTP_TIMEOUT) as http_client:
             for image_url in image_urls:
@@ -557,9 +546,6 @@ async def _process_slack_mention_impl(
     }
     if mapped_login:
         configurable["github_login"] = mapped_login
-    if image_model_override:
-        configurable["agent_model_id"] = image_model_override[0]
-        configurable["agent_effort"] = image_model_override[1]
 
     thread_plan_mode = await common._get_thread_plan_mode(thread_id)
     if thread_plan_mode is not None:

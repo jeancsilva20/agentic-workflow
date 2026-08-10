@@ -61,11 +61,6 @@ async def _capture_create_deep_agent_kwargs() -> dict[str, object]:
             new_callable=AsyncMock,
             return_value="/workspace",
         ),
-        patch(
-            "agent.server.get_team_default_model_pair",
-            new_callable=AsyncMock,
-            return_value=(("openai:gpt-5.6-sol", "medium"), ("openai:gpt-5.6-sol", "low")),
-        ),
         patch("agent.server.load_profile", new_callable=AsyncMock, return_value=None),
         patch("agent.server.fallback_model_id_for", return_value=None),
         patch("agent.server.make_model", side_effect=[MagicMock(), MagicMock()]),
@@ -139,11 +134,6 @@ async def test_agent_always_wires_static_openspec_skills_even_without_profile() 
             "agent.server.aresolve_sandbox_work_dir",
             new_callable=AsyncMock,
             return_value="/workspace",
-        ),
-        patch(
-            "agent.server.get_team_default_model_pair",
-            new_callable=AsyncMock,
-            return_value=(("openai:gpt-5.6-sol", "medium"), ("openai:gpt-5.6-sol", "low")),
         ),
         patch("agent.server.load_profile", new_callable=AsyncMock, return_value=None),
         patch("agent.server.fallback_model_id_for", return_value=None),
