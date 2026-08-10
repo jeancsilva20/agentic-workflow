@@ -896,8 +896,22 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
                 resolve_triggering_user_identity, as_json_object(self._config), github_token
             )
         )
+        # For Jira-triggered runs authenticated via a fine-grained PAT, forward
+        # the token to the sandbox proxy so git operations inside the sandbox
+        # authenticate with the PAT instead of (or in the absence of) the
+        # GitHub App installation token.  The token is identified by the absence
+        # of an expiry timestamp, which distinguishes it from App tokens.
+        # We only do this when _expires_at is None AND the source is "jira" to
+        # avoid accidentally forwarding a non-PAT token.
+        jira_proxy_token: str | None = None
+        if self._source == "jira" and _expires_at is None:
+            jira_proxy_token = github_token
         sandbox_task = asyncio.create_task(
-            ensure_sandbox_for_thread(self._thread_id, repo=prompt_default_repo)
+            ensure_sandbox_for_thread(
+                self._thread_id,
+                repo=prompt_default_repo,
+                github_proxy_token=jira_proxy_token,
+            )
         )
         try:
             triggering_user_identity, sandbox_backend = await asyncio.gather(

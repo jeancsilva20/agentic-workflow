@@ -15,6 +15,7 @@ from langgraph.graph.state import RunnableConfig
 from langgraph_sdk import get_client
 
 from .github_app import get_github_app_installation_token_with_expiry
+from .github_pat import get_github_pat
 from .github_token import (
     cache_github_token_for_thread,
     get_github_token_from_thread,
@@ -293,6 +294,29 @@ async def leave_failure_comment(
             "Auth failure for GitHub-triggered run (no token to post comment): %s", message
         )
         return
+    if source == "jira":
+        config = get_config()
+        configurable = config.get("configurable", {})
+        jira_issue_key = configurable.get("jira_issue_key")
+        logger.error(
+            "Auth failure for Jira-triggered run (source=jira, issue=%s): %s",
+            jira_issue_key or "(no key)",
+            message,
+        )
+        if jira_issue_key:
+            try:
+                from .adf import markdown_to_adf
+                from .jira import add_comment
+
+                adf_body = markdown_to_adf(message)
+                await add_comment(jira_issue_key, adf_body)
+            except Exception:
+                logger.warning(
+                    "Failed to post auth-failure comment to Jira issue %s",
+                    jira_issue_key,
+                    exc_info=True,
+                )
+        return
     raise ValueError(f"Unknown source: {source}")
 
 
@@ -453,6 +477,24 @@ async def resolve_github_token(
     if not source:
         logger.error("Missing source for thread %s; cannot route auth failure responses", thread_id)
         raise RuntimeError(f"GitHub auth failed for thread {thread_id}: missing source")
+
+    # Jira-triggered runs use a fine-grained PAT when one is configured.  This
+    # path deliberately skips user_email / github_login / LangSmith OAuth so
+    # that the Jira poller never needs to know which human owns the PAT.
+    if source == "jira":
+        pat = get_github_pat()
+        if pat:
+            logger.info(
+                "Using GITHUB_PAT for Jira-triggered run on thread %s", thread_id
+            )
+            return pat, None
+        logger.warning(
+            "GITHUB_PAT is not configured; Jira run on thread %s will attempt "
+            "bot-token fallback",
+            thread_id,
+        )
+        # Fall through — bot-token-only mode or email-based paths below will
+        # handle it (and likely surface a clear error).
 
     github_login = configurable.get("github_login")
 
