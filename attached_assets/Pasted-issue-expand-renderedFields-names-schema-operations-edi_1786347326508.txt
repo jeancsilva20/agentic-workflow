@@ -1,0 +1,977 @@
+issue:
+  expand: renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations,customfield_10800.requestTypePractice
+  id: "485226"
+  self: https://sensedia.atlassian.net/rest/api/3/issue/485226
+  key: SSAI-89
+  fields:
+    customfield_10990: null
+    customfield_10991: null
+    statusCategory:
+      self: https://sensedia.atlassian.net/rest/api/3/statuscategory/2
+      id: 2
+      key: new
+      colorName: blue-gray
+      name: To Do
+    resolution: null
+    customfield_11720: null
+    customfield_10500: []
+    customfield_10984: null
+    customfield_12920: null
+    customfield_11715: null
+    customfield_10988: null
+    customfield_10989: null
+    customfield_11717: null
+    customfield_11719: null
+    lastViewed: 2026-08-10T03:32:25.398-0300
+    customfield_11700: null
+    customfield_12912: null
+    aggregatetimeoriginalestimate: null
+    customfield_12914: null
+    customfield_11703: null
+    customfield_12913: null
+    customfield_12916: null
+    customfield_12915:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/14484
+      value: Yes
+      id: "14484"
+    customfield_12918: null
+    customfield_12917: null
+    issuelinks: []
+    assignee: null
+    customfield_12919: null
+    customfield_10600: null
+    customfield_10963: null
+    customfield_11812: null
+    customfield_10601:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/10300
+      value: Não Iniciado
+      id: "10300"
+    customfield_10965: null
+    customfield_11811: null
+    customfield_11814: null
+    customfield_11813: null
+    customfield_11815: null
+    customfield_11819:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/13118
+      value: Sim
+      id: "13118"
+    subtasks: []
+    customfield_15177: null
+    customfield_10951: null
+    customfield_10952: null
+    customfield_10953: null
+    customfield_11800: null
+    customfield_10954: null
+    customfield_10955: null
+    customfield_10958: []
+    customfield_10959: null
+    votes:
+      self: https://sensedia.atlassian.net/rest/api/3/issue/SSAI-89/votes
+      votes: 0
+      hasVoted: false
+    worklog:
+      startAt: 0
+      maxResults: 20
+      total: 0
+      worklogs: []
+    issuetype:
+      self: https://sensedia.atlassian.net/rest/api/3/issuetype/10400
+      id: "10400"
+      description: Functionality or a feature expressed as a user goal.
+      iconUrl: https://sensedia.atlassian.net/images/icons/issuetypes/story.svg
+      name: Story
+      subtask: false
+      hierarchyLevel: 0
+    customfield_10940: null
+    customfield_10941: null
+    customfield_10700: null
+    customfield_10943: null
+    customfield_10944: null
+    customfield_10945: null
+    customfield_10946: null
+    customfield_10947: null
+    customfield_10949: null
+    customfield_13092: null
+    customfield_16002: null
+    customfield_17333: null
+    customfield_10934: null
+    customfield_13090: null
+    customfield_13081: null
+    customfield_13080: null
+    customfield_13083: null
+    customfield_13082: null
+    customfield_13085: null
+    customfield_15143: null
+    customfield_15144: null
+    customfield_13084: null
+    customfield_13086: null
+    customfield_13089: null
+    timetracking: {}
+    customfield_10920: null
+    customfield_10921:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/10406
+      value: Major
+      id: "10406"
+    customfield_10800: null
+    customfield_10922: null
+    customfield_10923: null
+    customfield_10924: null
+    customfield_13070: null
+    customfield_13071: null
+    customfield_14164: null
+    customfield_14162: null
+    customfield_14163: null
+    customfield_13078: https://docs.google.com/spreadsheets/d/1g1bCYP1METo2u-wn6B8JBZ8qJaK4qKLgL-Pbaulm1I0
+    customfield_15376: null
+    customfield_13079: null
+    environment: null
+    duedate: null
+    customfield_11681: null
+    customfield_11680: null
+    customfield_12890: null
+    customfield_11440: null
+    customfield_12892: null
+    customfield_11682: null
+    customfield_11200: null
+    customfield_11321: null
+    customfield_12895: null
+    customfield_11443: null
+    customfield_11442: null
+    customfield_11201: null
+    customfield_11566: null
+    customfield_13865: null
+    customfield_11687: null
+    customfield_11202: null
+    customfield_11203: null
+    customfield_11678: null
+    customfield_11436: null
+    customfield_12888: null
+    customfield_11435: null
+    customfield_12887: null
+    customfield_11438: sensedia.com
+    customfield_11679: null
+    customfield_11439: null
+    customfield_14827: null
+    customfield_11790:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/13063
+      value: Inclusão titular ou dependente
+      id: "13063"
+    customfield_11674: null
+    customfield_10100: null
+    customfield_13733: null
+    customfield_12886: null
+    customfield_11676: null
+    customfield_11554: null
+    customfield_11313: null
+    customfield_11675: null
+    customfield_12998: null
+    customfield_12877: null
+    customfield_11788: null
+    customfield_12876: null
+    customfield_11787:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/13015
+      value: No
+      id: "13015"
+    customfield_11548: null
+    customfield_11305: null
+    customfield_11547: null
+    customfield_12878: null
+    customfield_11306: null
+    customfield_11789: null
+    customfield_11429: null
+    timeestimate: null
+    customfield_11307: null
+    status:
+      self: https://sensedia.atlassian.net/rest/api/3/status/14919
+      description: ""
+      iconUrl: https://sensedia.atlassian.net/images/icons/statuses/generic.png
+      name: BACKLOG
+      id: "14919"
+      statusCategory:
+        self: https://sensedia.atlassian.net/rest/api/3/statuscategory/2
+        id: 2
+        key: new
+        colorName: blue-gray
+        name: To Do
+    customfield_12871: null
+    customfield_12991: null
+    customfield_12873: null
+    customfield_12872: null
+    customfield_12875: null
+    customfield_13964: null
+    customfield_12874:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/14303
+      value: No
+      id: "14303"
+    customfield_12866: null
+    customfield_11414: null
+    customfield_12986: null
+    customfield_12865: null
+    customfield_11413: null
+    customfield_11537: null
+    customfield_12868: null
+    customfield_11658: null
+    customfield_12867: null
+    customfield_11415: null
+    customfield_11418: null
+    aggregatetimeestimate: null
+    customfield_11659: null
+    customfield_12869: null
+    creator:
+      self: https://sensedia.atlassian.net/rest/api/3/user?accountId=712020%3A8501d1d9-43b8-4814-b1bf-42108e2b967e
+      accountId: 712020:8501d1d9-43b8-4814-b1bf-42108e2b967e
+      emailAddress: jean.silva@sensedia.com
+      avatarUrls:
+        48x48: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        24x24: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        16x16: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        32x32: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+      displayName: Jean Carlos da Silva
+      active: true
+      timeZone: America/Sao_Paulo
+      accountType: atlassian
+    customfield_11772: null
+    customfield_11412: null
+    customfield_13832: null
+    customfield_12985: null
+    customfield_12864: null
+    customfield_12863: null
+    customfield_11411: null
+    customfield_11403:
+      - name: Cloud Infrastructure
+        groupId: 0efefd49-b518-49d1-93c0-12af985059a4
+        self: https://sensedia.atlassian.net/rest/api/3/group?groupId=0efefd49-b518-49d1-93c0-12af985059a4
+      - name: PE-Dev Team Group
+        groupId: f7e0a9f8-96d8-4673-bb43-6769771651e6
+        self: https://sensedia.atlassian.net/rest/api/3/group?groupId=f7e0a9f8-96d8-4673-bb43-6769771651e6
+    customfield_11402:
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=qm%3A53eb669d-faee-4d04-a4a1-86493e439f23%3Abba7c2f4-3408-45e7-9a50-91efcb14657a
+        accountId: qm:53eb669d-faee-4d04-a4a1-86493e439f23:bba7c2f4-3408-45e7-9a50-91efcb14657a
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default/default-avatar.png
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default/default-avatar.png
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default/default-avatar.png
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default/default-avatar.png
+        displayName: Alan Arakaki
+        active: false
+        timeZone: America/Sao_Paulo
+        accountType: customer
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5bf2f554ed939a7dd81a9173
+        accountId: 5bf2f554ed939a7dd81a9173
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/32
+        displayName: Alan Beraldi Chiosini
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=557058%3A1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4
+        accountId: 557058:1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4/4c6d8320-9978-4ae5-9529-3b24791ae1d5/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4/4c6d8320-9978-4ae5-9529-3b24791ae1d5/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4/4c6d8320-9978-4ae5-9529-3b24791ae1d5/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:1ee0984e-c9bf-49c8-ade5-1b77bcb44cc4/4c6d8320-9978-4ae5-9529-3b24791ae1d5/32
+        displayName: Alan Santos
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=557058%3A7230af88-e281-4031-a5ab-c3e3812186bc
+        accountId: 557058:7230af88-e281-4031-a5ab-c3e3812186bc
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:7230af88-e281-4031-a5ab-c3e3812186bc/0af1edf8-ee33-408a-ae7e-83dac982a5c2/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:7230af88-e281-4031-a5ab-c3e3812186bc/0af1edf8-ee33-408a-ae7e-83dac982a5c2/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:7230af88-e281-4031-a5ab-c3e3812186bc/0af1edf8-ee33-408a-ae7e-83dac982a5c2/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/557058:7230af88-e281-4031-a5ab-c3e3812186bc/0af1edf8-ee33-408a-ae7e-83dac982a5c2/32
+        displayName: Camila Paulino
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=622793b1db58c100687c8b8c
+        accountId: 622793b1db58c100687c8b8c
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/622793b1db58c100687c8b8c/b4c2c1a0-d359-4eca-b644-62d9fa18f48b/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/622793b1db58c100687c8b8c/b4c2c1a0-d359-4eca-b644-62d9fa18f48b/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/622793b1db58c100687c8b8c/b4c2c1a0-d359-4eca-b644-62d9fa18f48b/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/622793b1db58c100687c8b8c/b4c2c1a0-d359-4eca-b644-62d9fa18f48b/32
+        displayName: Fabiano Costa
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=607de25ecbff1b0070e18b25
+        accountId: 607de25ecbff1b0070e18b25
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/607de25ecbff1b0070e18b25/f295cd0e-e670-4a35-9678-1a5e097a09c6/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/607de25ecbff1b0070e18b25/f295cd0e-e670-4a35-9678-1a5e097a09c6/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/607de25ecbff1b0070e18b25/f295cd0e-e670-4a35-9678-1a5e097a09c6/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/607de25ecbff1b0070e18b25/f295cd0e-e670-4a35-9678-1a5e097a09c6/32
+        displayName: Fabio Mauricio Mengue
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=61a7c283c15977006adf3915
+        accountId: 61a7c283c15977006adf3915
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61a7c283c15977006adf3915/fd59725d-9f4a-4b79-8f8f-d9297e46114d/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61a7c283c15977006adf3915/fd59725d-9f4a-4b79-8f8f-d9297e46114d/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61a7c283c15977006adf3915/fd59725d-9f4a-4b79-8f8f-d9297e46114d/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61a7c283c15977006adf3915/fd59725d-9f4a-4b79-8f8f-d9297e46114d/32
+        displayName: Isaac Mecchi
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=61aa4996ef18ca0071a6bba1
+        accountId: 61aa4996ef18ca0071a6bba1
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61aa4996ef18ca0071a6bba1/0962f3fc-f526-47dd-ace1-1455e0f806c2/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61aa4996ef18ca0071a6bba1/0962f3fc-f526-47dd-ace1-1455e0f806c2/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61aa4996ef18ca0071a6bba1/0962f3fc-f526-47dd-ace1-1455e0f806c2/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/61aa4996ef18ca0071a6bba1/0962f3fc-f526-47dd-ace1-1455e0f806c2/32
+        displayName: Joaze Oliveira
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=557058%3Abb4ce733-25d6-4e83-ac47-f3bc4b03738b
+        accountId: 557058:bb4ce733-25d6-4e83-ac47-f3bc4b03738b
+        avatarUrls:
+          48x48: https://secure.gravatar.com/avatar/bf38cd44113f4ad1b9a2e06246c459b8?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJV-6.png
+          24x24: https://secure.gravatar.com/avatar/bf38cd44113f4ad1b9a2e06246c459b8?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJV-6.png
+          16x16: https://secure.gravatar.com/avatar/bf38cd44113f4ad1b9a2e06246c459b8?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJV-6.png
+          32x32: https://secure.gravatar.com/avatar/bf38cd44113f4ad1b9a2e06246c459b8?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJV-6.png
+        displayName: José Vahl
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=614cb13af1c1740068473e6a
+        accountId: 614cb13af1c1740068473e6a
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/614cb13af1c1740068473e6a/204519dd-b696-462f-8db0-1c000562b07d/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/614cb13af1c1740068473e6a/204519dd-b696-462f-8db0-1c000562b07d/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/614cb13af1c1740068473e6a/204519dd-b696-462f-8db0-1c000562b07d/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/614cb13af1c1740068473e6a/204519dd-b696-462f-8db0-1c000562b07d/32
+        displayName: Marcelo Primo
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5d2887accbb3670c1fa157ca
+        accountId: 5d2887accbb3670c1fa157ca
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2887accbb3670c1fa157ca/279ee7a8-c3d4-4df8-a465-7612588ed7c9/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2887accbb3670c1fa157ca/279ee7a8-c3d4-4df8-a465-7612588ed7c9/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2887accbb3670c1fa157ca/279ee7a8-c3d4-4df8-a465-7612588ed7c9/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2887accbb3670c1fa157ca/279ee7a8-c3d4-4df8-a465-7612588ed7c9/32
+        displayName: Pedro Avelar Ribeiro Pereira
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5d2efad9a666040c85097081
+        accountId: 5d2efad9a666040c85097081
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/32
+        displayName: Rafael Henrique Serafini
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=6405e8067655a3223a23ac9c
+        accountId: 6405e8067655a3223a23ac9c
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/6405e8067655a3223a23ac9c/f841c2ba-1905-48bb-8a04-bf8be2cb07a0/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/6405e8067655a3223a23ac9c/f841c2ba-1905-48bb-8a04-bf8be2cb07a0/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/6405e8067655a3223a23ac9c/f841c2ba-1905-48bb-8a04-bf8be2cb07a0/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/6405e8067655a3223a23ac9c/f841c2ba-1905-48bb-8a04-bf8be2cb07a0/32
+        displayName: Robson Ganhara do Prado
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5a8c58789632fa35927943a0
+        accountId: 5a8c58789632fa35927943a0
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5a8c58789632fa35927943a0/d0db16f6-68b5-46f9-a8a5-671dcdc4168d/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5a8c58789632fa35927943a0/d0db16f6-68b5-46f9-a8a5-671dcdc4168d/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5a8c58789632fa35927943a0/d0db16f6-68b5-46f9-a8a5-671dcdc4168d/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5a8c58789632fa35927943a0/d0db16f6-68b5-46f9-a8a5-671dcdc4168d/32
+        displayName: Tiago Vilas Boas
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5e3967bcae5f880cbad7f68a
+        accountId: 5e3967bcae5f880cbad7f68a
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/32
+        displayName: Willian Carneiro
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+    customfield_11405: null
+    customfield_11404: null
+    customfield_11528: null
+    customfield_12979: null
+    customfield_17069: null
+    timespent: null
+    customfield_12970: null
+    customfield_12972: null
+    aggregatetimespent: null
+    customfield_13700: null
+    customfield_11755: null
+    customfield_12965: null
+    customfield_11754: null
+    customfield_11512:
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5bf2f554ed939a7dd81a9173
+        accountId: 5bf2f554ed939a7dd81a9173
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5bf2f554ed939a7dd81a9173/a33bf888-1a85-4edc-a51d-ea43c5c660df/32
+        displayName: Alan Beraldi Chiosini
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5d2efad9a666040c85097081
+        accountId: 5d2efad9a666040c85097081
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d2efad9a666040c85097081/448be188-f37c-4a5c-874b-fbcf72f0c64c/32
+        displayName: Rafael Henrique Serafini
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=63ea2d1ec06f89566cb216d3
+        accountId: 63ea2d1ec06f89566cb216d3
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/63ea2d1ec06f89566cb216d3/c2da59f5-2381-4acd-8666-f1eaf10f9b69/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/63ea2d1ec06f89566cb216d3/c2da59f5-2381-4acd-8666-f1eaf10f9b69/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/63ea2d1ec06f89566cb216d3/c2da59f5-2381-4acd-8666-f1eaf10f9b69/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/63ea2d1ec06f89566cb216d3/c2da59f5-2381-4acd-8666-f1eaf10f9b69/32
+        displayName: Thayná de Almeida
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+      - self: https://sensedia.atlassian.net/rest/api/3/user?accountId=5e3967bcae5f880cbad7f68a
+        accountId: 5e3967bcae5f880cbad7f68a
+        avatarUrls:
+          48x48: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/48
+          24x24: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/24
+          16x16: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/16
+          32x32: https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5e3967bcae5f880cbad7f68a/816fe275-d289-4d74-8bdb-43ecec657ab7/32
+        displayName: Willian Carneiro
+        active: true
+        timeZone: America/Sao_Paulo
+        accountType: atlassian
+    customfield_12964: null
+    customfield_12967: null
+    customfield_12845: null
+    customfield_12968: null
+    workratio: -1
+    customfield_12960: null
+    customfield_13931: null
+    customfield_12963: null
+    customfield_10300: "{}"
+    customfield_11510: null
+    customfield_12953: null
+    customfield_12835: null
+    customfield_12958: null
+    customfield_12957: null
+    customfield_11508: null
+    customfield_11507: null
+    customfield_12959: null
+    customfield_17285: null
+    customfield_17284: null
+    customfield_17283: null
+    customfield_17282: null
+    customfield_17287: null
+    customfield_17286: null
+    customfield_12950: null
+    customfield_12831: null
+    customfield_12952: null
+    customfield_12951: null
+    customfield_11611:
+      - self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/12042
+        value: Manager Layer
+        id: "12042"
+    customfield_11735: null
+    customfield_11734: null
+    customfield_11615: null
+    customfield_11739: null
+    customfield_11738: null
+    customfield_12827: null
+    customfield_17281: null
+    customfield_17280: null
+    customfield_18004: null
+    customfield_17399: null
+    customfield_17278: null
+    customfield_17279: null
+    customfield_10400: null
+    customfield_11730: null
+    customfield_11722: null
+    customfield_12932: null
+    customfield_10995: null
+    customfield_12931: null
+    customfield_11721: null
+    customfield_12934: null
+    customfield_11724: null
+    customfield_12933: null
+    customfield_10999: null
+    customfield_11604: null
+    customfield_12935: null
+    customfield_11606: null
+    customfield_11609: null
+    customfield_11608: null
+    customfield_11160: null
+    customfield_11282: null
+    customfield_11161: null
+    customfield_11041: null
+    customfield_11162: null
+    customfield_11163: null
+    customfield_11164: null
+    customfield_11044: null
+    customfield_11165: null
+    customfield_11166: null
+    customfield_11287: null
+    customfield_11167: null
+    customfield_11046: null
+    customfield_11047: null
+    customfield_11168: null
+    customfield_13106: null
+    customfield_11048: null
+    customfield_11169: null
+    customfield_11049: null
+    customfield_11150: null
+    customfield_11393: null
+    customfield_11151: null
+    customfield_11030: null
+    customfield_11152: null
+    customfield_11031: null
+    customfield_11399: null
+    customfield_11156: null
+    customfield_11398:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11422
+      value: Não
+      id: "11422"
+    customfield_11279: 2026-08-10T03:32:00.000-0300
+    customfield_11159: null
+    customfield_11038: null
+    labels: []
+    customfield_11149: null
+    customfield_11028: null
+    customfield_11029: null
+    customfield_14659: null
+    components: []
+    customfield_11141: null
+    customfield_11020: null
+    customfield_11262: null
+    customfield_11142: null
+    customfield_11263: null
+    customfield_11021: null
+    customfield_11264: null
+    customfield_11386: null
+    customfield_11144: null
+    customfield_11023: null
+    customfield_11024: null
+    customfield_11145: null
+    customfield_11146: null
+    customfield_11025: null
+    customfield_11147: null
+    customfield_11026: null
+    customfield_11148: null
+    customfield_11269: null
+    customfield_11027: null
+    customfield_11389: null
+    customfield_11259: null
+    customfield_11138: null
+    customfield_11018: null
+    customfield_11019: null
+    customfield_14527: null
+    customfield_11371:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11361
+      value: Não
+      id: "11361"
+    customfield_11373:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11365
+      value: Não
+      id: "11365"
+    customfield_11131: null
+    customfield_11010: null
+    customfield_11372:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11363
+      value: Não
+      id: "11363"
+    customfield_11132: null
+    customfield_11375: null
+    reporter:
+      self: https://sensedia.atlassian.net/rest/api/3/user?accountId=712020%3A8501d1d9-43b8-4814-b1bf-42108e2b967e
+      accountId: 712020:8501d1d9-43b8-4814-b1bf-42108e2b967e
+      emailAddress: jean.silva@sensedia.com
+      avatarUrls:
+        48x48: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        24x24: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        16x16: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+        32x32: https://secure.gravatar.com/avatar/2af2f5078a4e87556916fe1bde822d2f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FJS-2.png
+      displayName: Jean Carlos da Silva
+      active: true
+      timeZone: America/Sao_Paulo
+      accountType: atlassian
+    customfield_11374:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11368
+      value: Sim
+      id: "11368"
+    customfield_11134: null
+    customfield_11497: null
+    customfield_13436: null
+    customfield_13799: null
+    customfield_11137: null
+    customfield_11016: null
+    customfield_11378: null
+    customfield_11127: null
+    customfield_15969: null
+    customfield_13668: null
+    customfield_11007: null
+    customfield_11369:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/11360
+      value: Não
+      id: "11360"
+    customfield_11008: null
+    customfield_17904: null
+    customfield_11009: null
+    progress:
+      progress: 0
+      total: 0
+    customfield_11483: null
+    project:
+      self: https://sensedia.atlassian.net/rest/api/3/project/20593
+      id: "20593"
+      key: SSAI
+      name: Sensedia AI Day
+      projectTypeKey: software
+      simplified: false
+      avatarUrls:
+        48x48: https://sensedia.atlassian.net/rest/api/3/universal_avatar/view/type/project/avatar/13250
+        24x24: https://sensedia.atlassian.net/rest/api/3/universal_avatar/view/type/project/avatar/13250?size=small
+        16x16: https://sensedia.atlassian.net/rest/api/3/universal_avatar/view/type/project/avatar/13250?size=xsmall
+        32x32: https://sensedia.atlassian.net/rest/api/3/universal_avatar/view/type/project/avatar/13250?size=medium
+    customfield_11482: null
+    customfield_11000: null
+    customfield_11485: null
+    customfield_11001: null
+    customfield_11122: null
+    customfield_11002: null
+    customfield_11003: null
+    customfield_11125: null
+    customfield_13667: null
+    customfield_11004: null
+    customfield_11489: null
+    customfield_11126: null
+    customfield_11367: null
+    customfield_13536: null
+    resolutiondate: null
+    watches:
+      self: https://sensedia.atlassian.net/rest/api/3/issue/SSAI-89/watchers
+      watchCount: 1
+      isWatching: true
+    customfield_11470: null
+    customfield_11591: null
+    customfield_11590: null
+    customfield_11593: null
+    customfield_11110: null
+    customfield_11474: null
+    customfield_11473: null
+    customfield_11594: null
+    customfield_11111: null
+    customfield_11112: null
+    customfield_11234: null
+    customfield_11475: null
+    customfield_13898: null
+    customfield_11469: null
+    customfield_11589: null
+    customfield_11229: null
+    customfield_11108: https://sensedia.atlassian.net/l/c/5sGc14qK
+    customfield_11109: null
+    updated: 2026-08-10T03:36:08.566-0300
+    timeoriginalestimate: null
+    customfield_11340:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/14843
+      value: Substituição - Desligamento por iniciativa colaborador
+      id: "14843"
+    description:
+      type: doc
+      version: 1
+      content:
+        - type: paragraph
+          content:
+            - type: text
+              text: Quero melhorar os logs e erros da API para facilitar análises, quero usar libs nativas do python para garantir qualidade do código
+          attrs:
+            localId: ad939952cafe
+    customfield_11583: null
+    customfield_11221: null
+    customfield_11100: null
+    customfield_11101: null
+    customfield_10012: "0|i1nfge:"
+    customfield_11585: null
+    customfield_11102: null
+    customfield_11103: null
+    customfield_11215: null
+    customfield_13636: null
+    customfield_10005: null
+    customfield_10006: null
+    customfield_11457: null
+    customfield_11216: null
+    customfield_13635: null
+    customfield_15934: null
+    customfield_10007: null
+    customfield_11339:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/14839
+      value: Está alinhada com BP e Head/Diretor da área
+      id: "14839"
+    customfield_14725: null
+    customfield_13637: null
+    customfield_10008: null
+    customfield_11218: null
+    summary: Melhorar cenários de erros e logs
+    customfield_11570: null
+    customfield_11691: null
+    customfield_11694:
+      type: doc
+      version: 1
+      content:
+        - type: panel
+          content:
+            - type: paragraph
+              content:
+                - type: text
+                  text: Infinity VR Description Template
+                  marks:
+                    - type: strong
+            - type: paragraph
+              content:
+                - type: emoji
+                  attrs:
+                    shortName: ":info:"
+                    id: atlassian-info
+                    text: ":info:"
+                - type: text
+                  text: " "
+                - type: text
+                  text: Descrição
+                  marks:
+                    - type: strong
+                - type: text
+                  text: ":"
+                - type: hardBreak
+                - type: text
+                  text: — <Detalhar o problema do cliente>
+                  marks:
+                    - type: em
+            - type: paragraph
+              content:
+                - type: emoji
+                  attrs:
+                    shortName: ":cross_mark:"
+                    id: atlassian-cross_mark
+                    text: ":cross_mark:"
+                - type: text
+                  text: " "
+                - type: text
+                  text: Evidências
+                  marks:
+                    - type: strong
+                - type: text
+                  text: ":"
+                - type: hardBreak
+                - type: text
+                  text: — <Anexar evidências enviadas pelo cliente. Log da execução e json utilização são obrigatórios>
+                  marks:
+                    - type: em
+            - type: paragraph
+              content:
+                - type: emoji
+                  attrs:
+                    shortName: ":flag_on:"
+                    id: atlassian-flag_on
+                    text: ":flag_on:"
+                - type: text
+                  text: " "
+                - type: text
+                  text: Cliente
+                  marks:
+                    - type: strong
+                - type: hardBreak
+                - type: text
+                  text: — <Nome da pessoa que fez o acionamento>
+                  marks:
+                    - type: em
+          attrs:
+            panelType: warning
+    customfield_11573: null
+    customfield_11693: null
+    customfield_10000: null
+    customfield_11575: null
+    customfield_10001: null
+    customfield_13997: null
+    customfield_11212: null
+    customfield_11335: null
+    customfield_11456: null
+    customfield_10003: null
+    customfield_11577: null
+    customfield_11576: null
+    customfield_10004: null
+    customfield_11326: null
+    customfield_11204: null
+    customfield_11205: null
+    customfield_11688: null
+    customfield_11446: null
+    customfield_11206: null
+    customfield_11207: null
+    customfield_15809: null
+    comment:
+      comments: []
+      self: https://sensedia.atlassian.net/rest/api/3/issue/485226/comment
+      maxResults: 0
+      total: 0
+      startAt: 0
+    statuscategorychangedate: 2026-08-10T03:32:18.614-0300
+    customfield_14394: null
+    customfield_13068: null
+    fixVersions: []
+    customfield_10908: null
+    customfield_15110: null
+    customfield_14261: null
+    priority:
+      self: https://sensedia.atlassian.net/rest/api/3/priority/3
+      iconUrl: https://sensedia.atlassian.net/images/icons/priorities/medium_new.svg
+      name: Medium
+      id: "3"
+    customfield_15109: null
+    versions: []
+    customfield_14494: null
+    customfield_13041: null
+    customfield_13040: null
+    customfield_13043: null
+    customfield_15103: null
+    customfield_15104: null
+    customfield_15101: null
+    customfield_15343: null
+    customfield_15102: null
+    customfield_15107: null
+    customfield_15108: null
+    customfield_15105: null
+    customfield_15106: null
+    customfield_11090: null
+    customfield_11091: null
+    customfield_13030: null
+    customfield_11094: null
+    customfield_13271: null
+    customfield_11095: null
+    customfield_17633: null
+    customfield_11099: null
+    customfield_15574: null
+    customfield_13036: null
+    aggregateprogress:
+      progress: 0
+      total: 0
+    customfield_13035: null
+    customfield_13038: null
+    customfield_13037: null
+    customfield_13039: null
+    customfield_11081: null
+    customfield_13021: null
+    customfield_13020: null
+    customfield_13023: null
+    customfield_11087: null
+    customfield_13022: null
+    customfield_13025: null
+    customfield_15442: null
+    customfield_11088: null
+    customfield_13024: null
+    customfield_11089: null
+    customfield_13027: null
+    customfield_13026: null
+    customfield_13028: null
+    customfield_13019: null
+    customfield_11190: null
+    customfield_11070: null
+    customfield_11191: null
+    customfield_11071: null
+    customfield_11192: null
+    customfield_14461: null
+    customfield_13370: null
+    customfield_11193: null
+    customfield_11072: null
+    created: 2026-08-10T03:32:15.878-0300
+    customfield_13010: null
+    customfield_11194: null
+    customfield_11195: null
+    customfield_11196: null
+    customfield_17733: null
+    customfield_13012: null
+    customfield_11197: null
+    customfield_13011:
+      self: https://sensedia.atlassian.net/rest/api/3/customFieldOption/14666
+      value: Yes
+      id: "14666"
+    customfield_11198: null
+    customfield_15310: null
+    customfield_13014: null
+    customfield_11199: null
+    customfield_13013: null
+    customfield_11079: null
+    customfield_13015: null
+    customfield_13018: null
+    customfield_13017: null
+    customfield_13008: null
+    customfield_11180: null
+    customfield_11060: null
+    customfield_11181: null
+    customfield_14692: null
+    customfield_11061: null
+    customfield_11182: null
+    customfield_11062: null
+    customfield_11183: null
+    customfield_11184: null
+    customfield_11063: null
+    customfield_13001: null
+    customfield_11185: null
+    customfield_11186: []
+    customfield_13000: null
+    customfield_13003: null
+    customfield_11187: null
+    customfield_11188: null
+    customfield_13002: null
+    customfield_11189: null
+    customfield_11069: null
+    customfield_13007: null
+    customfield_13006: null
+    security: null
+    attachment: []
+    customfield_11170: null
+    customfield_11171: null
+    customfield_11050: null
+    customfield_11172: null
+    customfield_11051: null
+    customfield_11052: null
+    customfield_11294: null
+    customfield_11173: null
+    customfield_11295: null
+    customfield_11174: null
+    customfield_11296: null
+    customfield_11175: null
+    customfield_11055: null
+    customfield_11176: null
+    customfield_11056: null
+    customfield_11177: null
+    customfield_11178: null
+    customfield_11057: null
+    customfield_11179: null
+    customfield_14327: null
+    customfield_11059: null
+    customfield_13238: null
