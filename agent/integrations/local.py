@@ -26,7 +26,14 @@ async def create_local_sandbox(sandbox_id: str | None = None):
     """
     from ..utils.github_pat import get_github_pat
 
-    root_dir = os.getenv("LOCAL_SANDBOX_ROOT_DIR", os.getcwd())
+    configured_root_dir = os.getenv("LOCAL_SANDBOX_ROOT_DIR")
+    if configured_root_dir:
+        root_dir = configured_root_dir
+    else:
+        # LangGraph's blockbuster guard rejects synchronous filesystem calls
+        # on the ASGI event loop.  Keep the fallback compatible with the
+        # existing behavior, but resolve it off-loop.
+        root_dir = await asyncio.to_thread(os.getcwd)
     await asyncio.to_thread(os.makedirs, root_dir, exist_ok=True)
 
     extra_env: dict[str, str] | None = None

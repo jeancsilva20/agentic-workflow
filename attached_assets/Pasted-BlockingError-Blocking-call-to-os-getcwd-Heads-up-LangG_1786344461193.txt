@@ -1,0 +1,97 @@
+BlockingError(
+  "Blocking call to os.getcwd
+
+Heads up! LangGraph dev identified a synchronous blocking call in your code. When running in an ASGI web server, blocking calls can degrade performance for everyone since they tie up the event loop.
+
+Here are your options to fix this:
+
+1. Best approach: Use an async driver so the call is non-blocking
+   For example, use 'await aiohttp.get()' instead of 'requests.get()', or asyncpg instead of psycopg2.
+
+2. If an async driver isn't available: wrap the blocking call in a thread
+   Example: 'await asyncio.to_thread(your_blocking_function)'
+
+3. Dev-only override: run 'langgraph dev --allow-blocking'
+
+These blocking operations can prevent health checks and slow down other runs in your deployment. Following these recommendations will help keep your LangGraph application running smoothly!"
+)Traceback (most recent call last):
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/main.py", line 3440, in astream
+    async for _ in runner.atick(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_runner.py", line 396, in atick
+    await arun_with_retry(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_retry.py", line 744, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 733, in ainvoke
+    input = await asyncio.create_task(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 501, in ainvoke
+    ret = await self.afunc(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/prepare_run.py", line 66, in abefore_agent
+    updates = await self._prepare(prepared_state, runtime)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 917, in _prepare
+    triggering_user_identity, sandbox_backend = await asyncio.gather(
+                                                ^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 485, in ensure_sandbox_for_thread
+    sandbox_backend = await _create_sandbox_with_proxy(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 320, in _create_sandbox_with_proxy
+    sandbox_backend = await create_sandbox(snapshot_id=snapshot_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/utils/sandbox.py", line 65, in create_sandbox
+    return await factory(sandbox_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/integrations/local.py", line 29, in create_local_sandbox
+    root_dir = os.getenv(
+  "LOCAL_SANDBOX_ROOT_DIR",
+  os.getcwd()
+)
+                                                   ^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/blockbuster/blockbuster.py", line 109, in wrapper
+    raise BlockingError(func_name)
+
+
+blockbuster.blockbuster.BlockingError: Blocking call to os.getcwd
+
+Heads up! LangGraph dev identified a synchronous blocking call in your code. When running in an ASGI web server, blocking calls can degrade performance for everyone since they tie up the event loop.
+
+Here are your options to fix this:
+
+1. Best approach: Use an async driver so the call is non-blocking
+   For example, use 'await aiohttp.get()' instead of 'requests.get()', or asyncpg instead of psycopg2.
+
+2. If an async driver isn't available: wrap the blocking call in a thread
+   Example: 'await asyncio.to_thread(your_blocking_function)'
+
+3. Dev-only override: run 'langgraph dev --allow-blocking'
+
+These blocking operations can prevent health checks and slow down other runs in your deployment. Following these recommendations will help keep your LangGraph application running smoothly!
+
+
+During task with name 'PrepareAgentRunMiddleware.before_agent' and id '527a8226-41b6-cf27-c48f-4278ead03ff8'
