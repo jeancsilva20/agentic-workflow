@@ -58,3 +58,35 @@ def test_unknown_event_kind_returns_404(client) -> None:
     response = client.post("/api/events/bogus", json={})
 
     assert response.status_code == 404
+
+
+def test_reset_card_deletes_runtime_thread_and_clears_console_state(client, monkeypatch) -> None:
+    client.post("/api/events/run", json={"issue_key": "SSAI-88", "action": "launched"})
+    reset = {"issue_key": "SSAI-88", "thread_id": "thread-88", "deleted": True}
+    monkeypatch.setattr("app.runtime_bridge.reset_jira_thread", lambda key: reset)
+
+    response = client.post("/api/cards/SSAI-88/reset")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"success": True, **reset}
+    state = client.get("/api/state").get_json()
+    assert not any(row["issue_key"] == "SSAI-88" for row in state["runs"])
+
+
+def test_reset_card_rejects_active_runtime_thread(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.runtime_bridge.reset_jira_thread",
+        lambda _key: (_ for _ in ()).throw(RuntimeError("thread has an active run")),
+    )
+
+    response = client.post("/api/cards/SSAI-88/reset")
+
+    assert response.status_code == 409
+    assert response.get_json()["error"] == "thread has an active run"
+
+
+def test_reset_card_validates_issue_key(client) -> None:
+    response = client.post("/api/cards/not-a-jira-key/reset")
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "invalid Jira issue key"

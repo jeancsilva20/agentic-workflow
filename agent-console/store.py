@@ -87,6 +87,18 @@ class ConsoleStore:
     def record_log(self, message: str) -> None:
         self._append_log(message)
 
+    def reset_run(self, issue_key: str) -> None:
+        """Forget the console's live/queued view for one card.
+
+        The console is not the source of truth and this does not touch usage
+        history.  It only removes the stale lifecycle row so the next poll
+        reflects the thread reset performed by the runtime bridge.
+        """
+        with self._lock:
+            self._runs.pop(issue_key, None)
+            self._queue.pop(issue_key, None)
+        self._append_log(f"run {issue_key}: reset")
+
     def _append_log(self, message: str) -> None:
         with self._lock:
             self._log.append({"at": time.time(), "message": message})

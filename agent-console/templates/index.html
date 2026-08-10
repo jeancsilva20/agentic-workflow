@@ -232,6 +232,46 @@
     cursor: pointer;
   }
   .link-button:hover { color: var(--text); }
+  .reset-button {
+    background: rgba(248,81,73,.08);
+    border: 1px solid rgba(248,81,73,.45);
+    border-radius: 6px;
+    color: var(--bad);
+    font: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .reset-button:hover { background: rgba(248,81,73,.18); }
+  .reset-button:disabled { opacity: .55; cursor: progress; }
+  .recovery-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .recovery-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .recovery-form input {
+    min-width: 150px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    text-transform: uppercase;
+  }
   .timeline { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; }
   .timeline li { padding: 6px 0; border-bottom: 1px solid var(--border); }
   .timeline .ts { color: var(--muted); margin-right: 8px; font-family: ui-monospace, Consolas, monospace; }
@@ -303,6 +343,18 @@
         <div id="routing-empty" class="empty">Loading the routing table…</div>
       </details>
     </div>
+    <div class="routing-panel">
+      <span class="section-title">Recovery</span>
+      <div class="muted" style="margin-top:6px;font-size:12px">
+        Reset a stale Jira thread. Active runs are protected; Jira comments and usage history are preserved.
+      </div>
+      <form id="recovery-form" class="recovery-form">
+        <label for="recovery-issue-key">Jira issue key
+          <input id="recovery-issue-key" name="issue_key" placeholder="SSAI-88" autocomplete="off">
+        </label>
+        <button id="recovery-reset" type="submit" class="reset-button">Reset thread</button>
+      </form>
+    </div>
   </section>
 
   <section id="usage-overview" class="panel wide">
@@ -347,7 +399,7 @@
     <div class="panel">
       <h2>Runs</h2>
       <table>
-        <thead><tr><th>Issue</th><th>Status</th><th>Column</th><th>Parked for</th></tr></thead>
+        <thead><tr><th>Issue</th><th>Status</th><th>Column</th><th>Parked for</th><th>Action</th></tr></thead>
         <tbody id="runs-body"></tbody>
       </table>
       <div id="runs-empty" class="empty" style="display:none">No active or recent runs.</div>
@@ -447,7 +499,8 @@ async function refresh() {
     `<td>${escapeHtml(r.issue_key)}</td>` +
     `<td><span class="badge ${r.status}">${r.status}</span></td>` +
     `<td>${escapeHtml(r.column || "-")}</td>` +
-    `<td>${r.status === "waiting" ? fmtSeconds(r.time_parked_seconds) : "-"}</td></tr>`
+    `<td>${r.status === "waiting" ? fmtSeconds(r.time_parked_seconds) : "-"}</td>` +
+    `<td><button type="button" class="reset-button" data-reset-card="${escapeHtml(r.issue_key)}">Reset thread</button></td></tr>`
   ).join("");
   document.getElementById("runs-empty").style.display = data.runs.length ? "none" : "block";
 
@@ -763,11 +816,70 @@ async function openCardDetail(key) {
 function wireCardDetail() {
   ["queue-body", "runs-body", "active-agents-body"].forEach(id => {
     document.getElementById(id).addEventListener("click", event => {
+      if (event.target.closest("button[data-reset-card]")) return;
       const row = event.target.closest("tr[data-card]");
       if (row) openCardDetail(row.getAttribute("data-card"));
     });
   });
+  document.getElementById("runs-body").addEventListener("click", event => {
+    const button = event.target.closest("button[data-reset-card]");
+    if (!button) return;
+    event.stopPropagation();
+    resetCard(button.getAttribute("data-reset-card"), button);
+  });
   document.getElementById("card-detail-close").addEventListener("click", closeCardDetail);
+}
+
+async function resetCard(issueKey, button) {
+  if (!issueKey) return;
+  const confirmed = window.confirm(
+    "Reset the thread for " + issueKey +
+    "? This will not delete Jira comments or usage history. " +
+    "It only allows a new run after the next live poll."
+  );
+  if (!confirmed) return;
+
+  const originalText = button ? button.textContent : "Reset thread";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Resetting…";
+  }
+  try {
+    const res = await fetch("/api/cards/" + encodeURIComponent(issueKey) + "/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    let body = {};
+    try { body = await res.json(); } catch (e) { body = {}; }
+    if (!res.ok) throw new Error(body.error || "reset rejected (HTTP " + res.status + ")");
+    setCfgStatus("ok", issueKey + " reset — waiting for the next live poll.", true);
+    closeCardDetail();
+    await refresh();
+  } catch (e) {
+    setCfgStatus("error", "Could not reset " + issueKey + ": " + e.message);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+function wireRecoveryForm() {
+  document.getElementById("recovery-form").addEventListener("submit", event => {
+    event.preventDefault();
+    const input = document.getElementById("recovery-issue-key");
+    const button = document.getElementById("recovery-reset");
+    const issueKey = input.value.trim().toUpperCase();
+    if (!issueKey) {
+      setCfgStatus("error", "Enter a Jira issue key first.");
+      input.focus();
+      return;
+    }
+    resetCard(issueKey, button).then(() => {
+      if (!button.disabled) input.focus();
+      else input.value = "";
+    });
+  });
 }
 
 // --- agent configuration ------------------------------------------------
@@ -934,6 +1046,7 @@ function wireConfigControls() {
 
 wireConfigControls();
 wireCardDetail();
+wireRecoveryForm();
 fetchConfig();
 refresh();
 setInterval(refresh, 2000);

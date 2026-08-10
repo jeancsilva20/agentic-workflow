@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 import threading
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, TypeVar
+
+from langgraph_sdk import get_client
 
 # Same reason as config_store: the sibling `agent/` package is the runtime this
 # console configures, and it is not importable from the console's own directory.
@@ -103,3 +106,50 @@ def routing_table() -> list[dict[str, Any]]:
     from agent.routing import routing_table as _routing_table
 
     return _routing_table()
+
+
+async def _reset_jira_thread_async(issue_key: str) -> dict[str, Any]:
+    """Delete one deterministic Jira thread after proving it is not running.
+
+    The poller owns the same deterministic thread id.  Deleting the thread is
+    what makes the next live poll treat the card as a fresh BACKLOG card.
+    Terminal runs are deliberately allowed; active runs are not, because a
+    reset must never orphan work that is still executing.
+    """
+    from agent.utils.jira import generate_thread_id_from_jira_issue
+
+    url = os.environ.get("LANGGRAPH_URL") or os.environ.get("LANGGRAPH_URL_PROD", "http://localhost:2024")
+    client = get_client(url=url)
+    thread_id = generate_thread_id_from_jira_issue(issue_key)
+
+    try:
+        runs = await client.runs.list(thread_id, limit=100)
+    except Exception as exc:  # noqa: BLE001
+        # A missing thread is already reset.  The SDK error text is safe to
+        # return only as an operational detail; callers do not expose tokens.
+        if "404" in str(exc) or "not found" in str(exc).lower():
+            return {"issue_key": issue_key, "thread_id": thread_id, "deleted": False}
+        raise RuntimeError(f"could not inspect Jira thread: {exc}") from exc
+
+    terminal = frozenset({"success", "error", "failed", "timeout", "interrupted", "cancelled"})
+    active = [
+        str(run.get("run_id"))
+        for run in runs
+        if run.get("status") not in terminal
+    ]
+    if active:
+        raise RuntimeError(
+            "thread has an active run; wait for it to finish before resetting "
+            f"({len(active)} active run(s))"
+        )
+
+    try:
+        await client.threads.delete(thread_id)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"could not delete Jira thread: {exc}") from exc
+    return {"issue_key": issue_key, "thread_id": thread_id, "deleted": True}
+
+
+def reset_jira_thread(issue_key: str) -> dict[str, Any]:
+    """Reset a Jira card's stale LangGraph thread from the console process."""
+    return _run(_reset_jira_thread_async(issue_key))

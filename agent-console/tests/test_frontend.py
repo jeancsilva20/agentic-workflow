@@ -107,6 +107,13 @@ def test_observability_sections_are_rendered(page: str) -> None:
     assert page.index('id="active-agents"') < page.index('class="panels"')
 
 
+def test_recovery_control_can_reset_a_card_without_a_visible_run(page: str) -> None:
+    assert 'id="recovery-form"' in page
+    assert 'id="recovery-issue-key"' in page
+    assert 'id="recovery-reset"' in page
+    assert '"/api/cards/"' in page
+
+
 def test_the_page_never_carries_a_credential(page: str) -> None:
     """The console makes no outbound call, so it has no token to embed."""
     for secret_marker in ("api_key", "apiKey", "Authorization", "Bearer ", "ls__", "sk-"):

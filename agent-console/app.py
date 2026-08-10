@@ -15,6 +15,7 @@ Point the agent at it (agent/utils/console_events.py) via:
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 import observability
@@ -24,6 +25,7 @@ from flask import Flask, jsonify, render_template, request
 from store import store
 
 app = Flask(__name__)
+_JIRA_ISSUE_KEY = re.compile(r"^[A-Z][A-Z0-9_]*-\d+$")
 
 
 @app.get("/")
@@ -34,6 +36,24 @@ def index():
 @app.get("/api/state")
 def get_state():
     return jsonify(store.status())
+
+
+@app.post("/api/cards/<issue_key>/reset")
+def reset_card(issue_key: str):
+    """Reset a stale Jira thread so the next live poll can launch it again."""
+    if not _JIRA_ISSUE_KEY.fullmatch(issue_key):
+        return jsonify({"error": "invalid Jira issue key"}), 400
+
+    try:
+        result = runtime_bridge.reset_jira_thread(issue_key)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"could not reset thread: {exc}"}), 502
+
+    store.reset_run(issue_key)
+    observability.reset_card(issue_key)
+    return jsonify({"success": True, **result})
 
 
 @app.get("/api/config")

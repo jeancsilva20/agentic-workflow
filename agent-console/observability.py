@@ -112,6 +112,18 @@ def live() -> dict[str, Any]:
     return {"active": active_agents.list_active()}
 
 
+def reset_card(jira_issue_key: str) -> None:
+    """Remove stale in-flight telemetry for one Jira card.
+
+    A missing completion webhook can leave the console mirror showing a run
+    forever.  Resetting a card is an explicit operator action, so clear only
+    that card and preserve its completed usage history.
+    """
+    for row in active_agents.list_active():
+        if row.get("jira_issue_key") == jira_issue_key:
+            active_agents.finish(row["run_id"])
+
+
 def today_usage() -> dict[str, Any]:
     return usage_store.get_today_usage().as_dict()
 
