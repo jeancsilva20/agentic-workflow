@@ -47,6 +47,29 @@ COLUMN_MERGED = os.environ.get("JIRA_COLUMN_MERGED", "Mergeado")
 COLUMN_DONE = os.environ.get("JIRA_COLUMN_DONE", "Done")
 _GATE_COLUMNS = (COLUMN_SPEC_REVIEW, COLUMN_CODE_REVIEW, COLUMN_MERGE)
 
+
+def _gate_columns() -> tuple[str, ...]:
+    """The three columns the agent parks a thread at, read at call time."""
+    return (COLUMN_SPEC_REVIEW, COLUMN_CODE_REVIEW, COLUMN_MERGE)
+
+
+def _post_gate_columns() -> tuple[str, ...]:
+    """The columns a human moves a parked card *to*.
+
+    Step B's query has to cover these as well as the gate columns themselves:
+    once a human moves the card out of a gate, the card no longer matches a
+    gate-only query, so a poller that watched only the gates would never see
+    the decision it exists to detect.
+    """
+    return (
+        COLUMN_SPEC_APPROVED,
+        COLUMN_ADJUST_SPEC,
+        COLUMN_CODE_APPROVED,
+        COLUMN_ADJUST_CODE,
+        COLUMN_MERGED,
+    )
+
+
 # Decision 11 mitigation (task 5.10): optional JQL scoping, off by default —
 # the board and the column-driven model stay intact either way. This is a
 # configuration change, not a redesign.
@@ -74,6 +97,13 @@ JIRA_POLLER_PAUSED = os.environ.get("JIRA_POLLER_PAUSED", "").strip().lower() in
 
 _POLLER_CRON_METADATA = {"kind": "jira_poller"}
 
+# Page size per Jira search request, and the ceiling on how many pages a single
+# tick will walk. The cap only exists so a misconfigured project key or an
+# unexpectedly huge board can't make one tick run forever; hitting it is logged
+# as a warning because it means cards are going unpolled.
+_SEARCH_PAGE_SIZE = 50
+_MAX_SEARCH_PAGES = 20
+
 
 def _langgraph_url() -> str:
     return os.environ.get("LANGGRAPH_URL") or os.environ.get(
@@ -87,8 +117,58 @@ def _trigger_jql() -> str:
 
 
 def _parked_jql() -> str:
-    columns = ", ".join(f'"{c}"' for c in _GATE_COLUMNS)
+    """JQL for Step B: every column a parked thread can legitimately sit in.
+
+    Both the gate columns (card still parked, nothing to do) and the post-gate
+    columns a human moves it to (the decision this step exists to detect).
+    Querying both in one JQL keeps the "did the column actually change?"
+    comparison — and therefore idempotency — inside Step B itself.
+    """
+    seen: list[str] = []
+    for column in (*_gate_columns(), *_post_gate_columns()):
+        if column and column not in seen:
+            seen.append(column)
+    columns = ", ".join(f'"{c}"' for c in seen)
     return f"project = {JIRA_PROJECT_KEY} AND status in ({columns})"
+
+
+async def _search_all_issues(jql: str, *, fields: list[str]) -> dict[str, Any]:
+    """Collect every page of a JQL search, not just the first.
+
+    A single page silently drops cards once the result set is larger than
+    ``_SEARCH_PAGE_SIZE``, and Step B's query spans eight columns: parked
+    cards sitting at a gate can fill the first page while the one card a
+    human actually moved is on page two, so it would never be resumed. The
+    number of pages is capped so a runaway query can't stall the tick.
+
+    Returns ``{"issues": [...]}``, plus an ``error`` key if a page failed —
+    the issues collected before the failure are still returned, since acting
+    on the cards we did see beats dropping the whole tick.
+    """
+    issues: list[dict[str, Any]] = []
+    next_page_token: str | None = None
+    for _ in range(_MAX_SEARCH_PAGES):
+        result = await search_issues(
+            jql,
+            next_page_token=next_page_token,
+            max_results=_SEARCH_PAGE_SIZE,
+            fields=fields,
+        )
+        if "error" in result:
+            return {"issues": issues, "error": result["error"]}
+        issues.extend(result.get("issues", []))
+        next_page_token = result.get("next_page_token")
+        if not next_page_token:
+            break
+    else:
+        logger.warning(
+            "Jira poller: stopped paginating %r after %d pages (%d issues) — cards beyond "
+            "this point are not being polled this tick",
+            jql,
+            _MAX_SEARCH_PAGES,
+            len(issues),
+        )
+    return {"issues": issues}
 
 
 async def _thread_metadata(client: Any, thread_id: str) -> dict[str, Any] | None:
@@ -112,10 +192,11 @@ def _column_name(issue: dict[str, Any]) -> str | None:
 
 async def _tick_step_a(client: Any) -> dict[str, Any]:
     """Launch a fresh thread for each unowned card in the trigger column."""
-    result = await search_issues(_trigger_jql(), max_results=50, fields=["status", "labels"])
-    if "error" in result:
-        logger.warning("Jira poller: trigger search failed: %s", result["error"])
-        return {"launched": 0, "skipped": 0, "error": result["error"]}
+    result = await _search_all_issues(_trigger_jql(), fields=["status", "labels"])
+    error = result.get("error")
+    if error and not result["issues"]:
+        logger.warning("Jira poller: trigger search failed: %s", error)
+        return {"launched": 0, "skipped": 0, "error": error}
 
     launched = 0
     skipped = 0
@@ -162,15 +243,21 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
         launched += 1
         await console_events.push_run_event(issue_key, "launched", human_filed=human_filed)
 
-    return {"launched": launched, "skipped": skipped}
+    summary = {"launched": launched, "skipped": skipped}
+    if error:
+        # Partial page failure: report it, but keep the work already done.
+        logger.warning("Jira poller: trigger search failed mid-pagination: %s", error)
+        summary["error"] = error
+    return summary
 
 
 async def _tick_step_b(client: Any) -> dict[str, Any]:
     """Re-trigger a parked thread whose card has moved to a different column."""
-    result = await search_issues(_parked_jql(), max_results=50, fields=["status"])
-    if "error" in result:
-        logger.warning("Jira poller: parked search failed: %s", result["error"])
-        return {"resumed": 0, "unchanged": 0, "error": result["error"]}
+    result = await _search_all_issues(_parked_jql(), fields=["status"])
+    error = result.get("error")
+    if error and not result["issues"]:
+        logger.warning("Jira poller: parked search failed: %s", error)
+        return {"resumed": 0, "unchanged": 0, "error": error}
 
     resumed = 0
     unchanged = 0
@@ -189,6 +276,20 @@ async def _tick_step_b(client: Any) -> dict[str, Any]:
         parked_column = metadata.get("jira_parked_column")
         if current_column == parked_column:
             unchanged += 1
+            continue
+
+        if JIRA_POLLER_SHADOW_MODE:
+            # Shadow mode's guarantee is "no real action" — that has to cover
+            # resumes too, not just fresh launches.
+            logger.info(
+                "Jira poller [shadow]: would resume thread for %s: %s -> %s",
+                issue_key,
+                parked_column,
+                current_column,
+            )
+            await console_events.push_log(
+                f"[shadow] would resume thread for {issue_key}: {parked_column} → {current_column}"
+            )
             continue
 
         if JIRA_POLLER_PAUSED:
@@ -218,7 +319,12 @@ async def _tick_step_b(client: Any) -> dict[str, Any]:
         resumed += 1
         await console_events.push_run_event(issue_key, "resumed", column=current_column)
 
-    return {"resumed": resumed, "unchanged": unchanged}
+    summary = {"resumed": resumed, "unchanged": unchanged}
+    if error:
+        # Partial page failure: report it, but keep the work already done.
+        logger.warning("Jira poller: parked search failed mid-pagination: %s", error)
+        summary["error"] = error
+    return summary
 
 
 async def tick() -> dict[str, Any]:

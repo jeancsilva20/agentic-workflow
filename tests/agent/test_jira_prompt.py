@@ -23,7 +23,9 @@ def test_jira_sections_present_with_issue_key() -> None:
     assert "### Spec Grounding Rules" in prompt
     assert "### Auto-Review Loops" in prompt
     assert "### Reviewer Graph Integration" in prompt
-    assert "### Canonical Docs Update" in prompt
+    assert "### Resuming After a Human Decision" in prompt
+    assert "### Pre-Merge Preparation" in prompt
+    assert "### Post-Merge Closing" in prompt
 
 
 def test_jira_branch_naming_uses_issue_key() -> None:
@@ -52,6 +54,121 @@ def test_blank_jira_issue_key_is_treated_as_absent() -> None:
     prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="   ")
 
     assert "Jira Workflow" not in prompt
+
+
+def test_prompt_guards_spec_review_move_on_a_pushed_remote_branch() -> None:
+    """The card must not reach `Em Revisão de Spec` on an unpushed spec."""
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    assert "Guard before `Em Revisão de Spec`" in prompt
+    assert "git ls-remote --heads origin" in prompt
+    assert (
+        "Do not move to `Em Revisão de Spec` unless the OpenSpec artifacts are committed" in prompt
+    )
+
+
+def test_prompt_puts_archive_and_docs_before_the_merge_gate() -> None:
+    """Archive + docs belong to the delivery, on the same branch/PR, before
+    `Em Merge` — not to a separate post-merge docs PR."""
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    pre_merge = prompt.split("### Pre-Merge Preparation", 1)[1].split("### Post-Merge Closing", 1)[
+        0
+    ]
+    assert "openspec_archive" in pre_merge
+    assert "same branch and the same PR" in pre_merge
+    assert "do not open a second PR for docs" in pre_merge
+
+    assert "Put doc updates in a **separate** PR" not in prompt
+
+
+def test_prompt_post_merge_phase_is_administrative_only() -> None:
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    post_merge = prompt.split("### Post-Merge Closing", 1)[1]
+    assert "introduce no new functional changes on the branch" in post_merge
+    assert "gh pr view <number> --json state,merged,mergedAt" in post_merge
+    assert "Move the card to `Done`" in post_merge
+
+
+def test_prompt_sources_adjust_code_fixes_from_github() -> None:
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    adjust_code = prompt.split("`Ajustar Code` — the code needs fixes", 1)[1].split(
+        "`Mergeado` — the merge already happened", 1
+    )[0]
+    assert "pulls/<number>/reviews" in adjust_code
+    assert "pulls/<number>/comments" in adjust_code
+    assert "list_review_findings" in adjust_code
+    assert "structured list" in adjust_code
+    # Jira comments are explicitly secondary to the GitHub review.
+    assert adjust_code.index("reviews") < adjust_code.index("Only then consult the Jira comments")
+
+
+def test_prompt_never_auto_merges_or_self_approves() -> None:
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    assert "Never move a card to `Code Review Aprovado` yourself" in prompt
+    assert "you never move a card into `Mergeado` yourself" in prompt
+    assert "you never merge a PR yourself" in prompt
+
+
+def test_prompt_orders_the_initial_transition_before_any_spec_work() -> None:
+    """`BACKLOG` -> `In Progress` has to be an ordered instruction inside PASSO 1,
+    not just a claim in the ownership list.
+
+    Without it the card stays in the trigger column while the agent specs and
+    even reaches the spec-review gate, so nobody looking at the board can tell
+    the work started.
+    """
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    passo_1 = prompt.split("**PASSO 1", 1)[1].split("**PASSO 2", 1)[0]
+    assert 'jira_transition_issue(SSAI-42, "In Progress")' in passo_1
+    assert "is not a gate" in passo_1
+    # And it must be ordered before the environment/spec work, not after.
+    assert prompt.index('jira_transition_issue(SSAI-42, "In Progress")') < prompt.index(
+        "**PASSO 3 — Analyze code and generate the spec.**"
+    )
+    # A failed claim leaves the card where it is, with an explanation.
+    assert "If that transition fails" in passo_1
+    assert "Do not start the work with the card still in `BACKLOG`" in passo_1
+
+
+def test_prompt_reviews_the_pre_merge_commits_before_parking_at_the_merge_gate() -> None:
+    """Archive/doc commits land after the human's code-review approval, so they
+    are the one part of the PR nobody reviewed — the agent has to check them."""
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    pre_merge = prompt.split("### Pre-Merge Preparation", 1)[1].split("### Post-Merge Closing", 1)[
+        0
+    ]
+    assert "they are the only part of the PR nobody has reviewed" in pre_merge
+    # Reviewing them has to happen before the park, not after.
+    assert pre_merge.index("Review what you just added") < pre_merge.index("jira_park_at_gate")
+    # Functional code smuggled into the pre-merge commits goes back through review.
+    assert "go back through `Em Code Review`" in pre_merge
+
+
+def test_prompt_makes_the_agent_own_every_non_gate_transition() -> None:
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    ownership = prompt.split("**Every automatic move is yours to make.**", 1)[1].split("\n\n", 1)[0]
+    for transition in (
+        "`BACKLOG` → `In Progress`",
+        "`Spec Aprovada` → `In Progress`",
+        "`Ajustar Spec` → `Em Revisão de Spec`",
+        "`Ajustar Code` → `Em Code Review`",
+        "`Code Review Aprovado` → `Em Merge`",
+        "`Mergeado` → `Done`",
+    ):
+        assert transition in ownership
+
+
+def test_prompt_runs_the_reviewer_on_every_code_review_entry() -> None:
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    assert "including each pass through the `Ajustar Code` loop" in prompt
 
 
 def test_prompt_reflects_column_name_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:

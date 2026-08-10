@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -66,6 +68,37 @@ class _FakeJiraClient:
 
 def _issue(key: str, status: str) -> dict[str, Any]:
     return {"key": key, "fields": {"status": {"name": status}, "labels": []}}
+
+
+@pytest.fixture(autouse=True)
+def _flags_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the poller brakes off — they're read from the environment at import
+    time, and a deployment env with `JIRA_POLLER_SHADOW_MODE=1` would otherwise
+    suppress every launch and resume this file asserts on."""
+    monkeypatch.setattr(jira_poller, "JIRA_POLLER_SHADOW_MODE", False)
+    monkeypatch.setattr(jira_poller, "JIRA_POLLER_PAUSED", False)
+
+
+@contextmanager
+def _parking_allowed(thread_id: str) -> Iterator[None]:
+    """The fakes `jira_park_at_gate` needs to run without Jira or LangGraph."""
+    with (
+        patch(
+            "agent.tools.jira_park_at_gate.get_config",
+            return_value={"configurable": {"thread_id": thread_id}},
+        ),
+        patch(
+            "agent.tools.jira_park_at_gate.add_comment",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ),
+        patch(
+            "agent.tools.jira_park_at_gate.transition_to_column",
+            new_callable=AsyncMock,
+            return_value={"success": True},
+        ),
+    ):
+        yield
 
 
 @pytest.mark.asyncio
@@ -229,3 +262,180 @@ async def test_full_workflow_through_all_three_gates() -> None:
         tick_5 = await jira_poller.tick()
         assert tick_5["step_a"]["launched"] == 0
         assert tick_5["step_b"]["unchanged"] == 1
+
+        # --- Em Merge is a human gate: the card sits there until a HUMAN
+        # merges the PR and moves it. Nothing in the tick advances it. ---
+        assert board["column"] == jira_poller.COLUMN_MERGE
+        assert fake_client.metadata[thread_id]["jira_parked"] is True
+
+        # --- Human merged on GitHub and moved the card -> post-merge resume ---
+        board["column"] = jira_poller.COLUMN_MERGED
+        tick_6 = await jira_poller.tick()
+        assert tick_6["step_b"]["resumed"] == 1
+        assert fake_client.metadata[thread_id]["jira_parked"] is False
+
+        # The agent closes the card itself; Done is not a gate, so no further
+        # park happens and the next tick has nothing left to do.
+        board["column"] = jira_poller.COLUMN_DONE
+        tick_7 = await jira_poller.tick()
+        assert tick_7["step_a"]["launched"] == 0
+        assert tick_7["step_b"] == {"resumed": 0, "unchanged": 0}
+
+
+@pytest.mark.asyncio
+async def test_adjust_spec_loop_reparks_the_same_thread_each_cycle() -> None:
+    """Em Revisão de Spec -> Ajustar Spec -> (agent revises) -> Em Revisão de
+    Spec, twice, on ONE thread. Each rejection must resume, and each revision
+    must re-park at the same gate."""
+    fake_client = _FakeJiraClient()
+    issue_key = "SSAI-200"
+    thread_id = jira_poller.generate_thread_id_from_jira_issue(issue_key)
+    board = {"column": jira_poller.COLUMN_SPEC_REVIEW}
+    fake_client.metadata[thread_id] = {
+        "jira_issue_key": issue_key,
+        "jira_parked": True,
+        "jira_parked_column": jira_poller.COLUMN_SPEC_REVIEW,
+    }
+
+    async def fake_search_issues(jql: str, **_kwargs: Any) -> dict[str, Any]:
+        if jira_poller.COLUMN_TRIGGER in jql:
+            return {"issues": []}
+        return {"issues": [_issue(issue_key, board["column"])]}
+
+    resumed_columns: list[str] = []
+
+    async def record_dispatch(*args: Any, **kwargs: Any) -> None:
+        resumed_columns.append(kwargs["metadata"]["jira_column"])
+
+    with (
+        patch.object(jira_poller, "search_issues", side_effect=fake_search_issues),
+        patch.object(
+            jira_poller, "get_comments", new_callable=AsyncMock, return_value={"comments": []}
+        ),
+        patch.object(jira_poller, "dispatch_agent_run", side_effect=record_dispatch),
+        patch("agent.jira_poller.get_client", return_value=fake_client),
+        patch("agent.tools.jira_park_at_gate.get_client", return_value=fake_client),
+        patch("agent.utils.console_events.AGENT_CONSOLE_URL", None),
+    ):
+        for cycle in range(2):
+            # Human rejects the spec.
+            board["column"] = jira_poller.COLUMN_ADJUST_SPEC
+            tick = await jira_poller.tick()
+            assert tick["step_b"]["resumed"] == 1, f"cycle {cycle} did not resume"
+            assert fake_client.metadata[thread_id]["jira_parked"] is False
+
+            # Agent revises the spec on the same branch and parks again.
+            with _parking_allowed(thread_id):
+                result = await jira_park_at_gate(
+                    issue_key, jira_poller.COLUMN_SPEC_REVIEW, f"Spec revised (cycle {cycle})."
+                )
+            assert result["end_run"] is True
+            board["column"] = jira_poller.COLUMN_SPEC_REVIEW
+
+            # Sitting at the gate again is a no-op until the human moves it.
+            idle = await jira_poller.tick()
+            assert idle["step_b"] == {"resumed": 0, "unchanged": 1}
+
+    assert resumed_columns == [jira_poller.COLUMN_ADJUST_SPEC] * 2
+    assert [h["column"] for h in fake_client.metadata[thread_id]["jira_gate_history"]] == [
+        jira_poller.COLUMN_SPEC_REVIEW,
+        jira_poller.COLUMN_SPEC_REVIEW,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_adjust_code_loop_reparks_at_code_review_for_a_fresh_reviewer_pass() -> None:
+    """Em Code Review -> Ajustar Code -> (agent fixes) -> Em Code Review.
+
+    Each re-entry into Em Code Review is a new park at that gate, which is what
+    makes the reviewer run again on the new version of the PR.
+    """
+    fake_client = _FakeJiraClient()
+    issue_key = "SSAI-201"
+    thread_id = jira_poller.generate_thread_id_from_jira_issue(issue_key)
+    board = {"column": jira_poller.COLUMN_CODE_REVIEW}
+    fake_client.metadata[thread_id] = {
+        "jira_issue_key": issue_key,
+        "jira_parked": True,
+        "jira_parked_column": jira_poller.COLUMN_CODE_REVIEW,
+    }
+
+    async def fake_search_issues(jql: str, **_kwargs: Any) -> dict[str, Any]:
+        if jira_poller.COLUMN_TRIGGER in jql:
+            return {"issues": []}
+        return {"issues": [_issue(issue_key, board["column"])]}
+
+    dispatched_prompts: list[str] = []
+
+    async def record_dispatch(*args: Any, **kwargs: Any) -> None:
+        dispatched_prompts.append(args[1])
+
+    with (
+        patch.object(jira_poller, "search_issues", side_effect=fake_search_issues),
+        patch.object(
+            jira_poller,
+            "get_comments",
+            new_callable=AsyncMock,
+            return_value={"comments": [{"body": "see the PR review comments"}]},
+        ),
+        patch.object(jira_poller, "dispatch_agent_run", side_effect=record_dispatch),
+        patch("agent.jira_poller.get_client", return_value=fake_client),
+        patch("agent.tools.jira_park_at_gate.get_client", return_value=fake_client),
+        patch("agent.utils.console_events.AGENT_CONSOLE_URL", None),
+    ):
+        for cycle in range(2):
+            board["column"] = jira_poller.COLUMN_ADJUST_CODE
+            tick = await jira_poller.tick()
+            assert tick["step_b"]["resumed"] == 1, f"cycle {cycle} did not resume"
+
+            with _parking_allowed(thread_id):
+                await jira_park_at_gate(
+                    issue_key, jira_poller.COLUMN_CODE_REVIEW, f"Fixes pushed (cycle {cycle})."
+                )
+            board["column"] = jira_poller.COLUMN_CODE_REVIEW
+
+    assert len(dispatched_prompts) == 2
+    for prompt in dispatched_prompts:
+        assert jira_poller.COLUMN_ADJUST_CODE in prompt
+        assert jira_poller.COLUMN_CODE_REVIEW in prompt
+    # Two separate visits to the code-review gate == two reviewer passes.
+    assert [h["column"] for h in fake_client.metadata[thread_id]["jira_gate_history"]] == [
+        jira_poller.COLUMN_CODE_REVIEW,
+        jira_poller.COLUMN_CODE_REVIEW,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_merged_resume_carries_the_post_merge_context() -> None:
+    """`Mergeado` resumes the same thread and is described to the agent as a
+    move out of `Em Merge` — i.e. a post-merge event, not a merge request."""
+    fake_client = _FakeJiraClient()
+    issue_key = "SSAI-202"
+    thread_id = jira_poller.generate_thread_id_from_jira_issue(issue_key)
+    fake_client.metadata[thread_id] = {
+        "jira_issue_key": issue_key,
+        "jira_parked": True,
+        "jira_parked_column": jira_poller.COLUMN_MERGE,
+    }
+
+    async def fake_search_issues(jql: str, **_kwargs: Any) -> dict[str, Any]:
+        if jira_poller.COLUMN_TRIGGER in jql:
+            return {"issues": []}
+        return {"issues": [_issue(issue_key, jira_poller.COLUMN_MERGED)]}
+
+    with (
+        patch.object(jira_poller, "search_issues", side_effect=fake_search_issues),
+        patch.object(
+            jira_poller, "get_comments", new_callable=AsyncMock, return_value={"comments": []}
+        ),
+        patch.object(jira_poller, "dispatch_agent_run", new_callable=AsyncMock) as mock_dispatch,
+        patch("agent.jira_poller.get_client", return_value=fake_client),
+        patch("agent.utils.console_events.AGENT_CONSOLE_URL", None),
+    ):
+        tick = await jira_poller.tick()
+
+    assert tick["step_b"]["resumed"] == 1
+    assert mock_dispatch.await_args.args[0] == thread_id
+    prompt = mock_dispatch.await_args.args[1]
+    assert f"moved from '{jira_poller.COLUMN_MERGE}' to '{jira_poller.COLUMN_MERGED}'" in prompt
+    assert mock_dispatch.await_args.kwargs["metadata"]["jira_column"] == jira_poller.COLUMN_MERGED

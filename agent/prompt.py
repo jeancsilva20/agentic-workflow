@@ -188,13 +188,18 @@ This run started because Jira issue **{jira_issue_key}** entered the trigger col
 ```
 {col_trigger} (trigger) -> {col_in_progress} -> [self-review] -> {col_spec_review} (gate 1: spec)
   -> {col_spec_approved} -> {col_in_progress} (implement) -> [self-review] -> reviewer graph
-  -> {col_code_review} (gate 2: code) -> {col_code_approved} -> {col_merge} (gate 3: merge)
-  -> {col_merged} -> {col_done}
+  -> {col_code_review} (gate 2: code) -> {col_code_approved}
+  -> [pre-merge: archive OpenSpec + update docs on the same branch/PR] -> {col_merge} (gate 3: merge)
+  -> {col_merged} -> [administrative closing only] -> {col_done}
 ```
 
 `{col_adjust_spec}` / `{col_adjust_code}` route back to spec generation / implementation with the human's comment as feedback — same as a normal continuation, not a special case.
 
-**PASSO 1 — Collect context.** Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anything else. Read the full description, every acceptance criterion, and every comment — comments often carry the evidence the description only summarizes.
+**PASSO 1 — Collect context, then claim the card.** In this order:
+
+1. Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anything else. Read the full description, every acceptance criterion, and every comment — comments often carry the evidence the description only summarizes.
+2. Call `jira_transition_issue({jira_issue_key}, "{col_in_progress}")` to move the card out of `{col_trigger}`. Do this **before** PASSO 2, not later: while the card sits in `{col_trigger}` nobody can tell it is being worked on, and the poller keeps seeing it as an untouched card. Use `jira_transition_issue`, not `jira_park_at_gate` — `{col_in_progress}` is not a gate.
+3. If that transition fails, post a `jira_add_comment` explaining the failure and stop. Do not start the work with the card still in `{col_trigger}`.
 
 **PASSO 2 — Prepare environment.** Clone the repo as usual (Repository Setup above), but the branch name is **not** the generic `open-swe/<slug>` convention — for a Jira-triggered run it MUST be:
 
@@ -206,9 +211,46 @@ feat/spec-{jira_issue_key}-<descricao-curta>
 
 **PASSO 3 — Analyze code and generate the spec.** Run the `openspec-explore` skill (`/openspec-skills/openspec-explore/SKILL.md`) to frame the problem, then `openspec-propose` (`/openspec-skills/openspec-propose/SKILL.md`) to write `proposal.md`, `design.md` (if warranted), `specs/<capability>/spec.md`, and `tasks.md` under `openspec/changes/<name>/` in the sandbox. See the grounding rules below before writing anything.
 
-**Gates — never block, always park.** On reaching any of the three approval gates (`{col_spec_review}`, `{col_code_review}`, `{col_merge}`), or when a self-review loop exhausts its guidance without resolving everything, call `jira_park_at_gate(issue_key, column_name, comment_body)` — it posts the comment, moves the card, marks the thread parked, and tells you to end your turn. Do this **instead of** calling `jira_add_comment` + `jira_transition_issue` separately for a gate; those two remain for comments/moves that are not a gate handoff (e.g. an intermediate progress note, or `PASSO 1`'s move to `{col_in_progress}`, which does not use `jira_park_at_gate`).
+**Gates — never block, always park.** On reaching any of the three approval gates (`{col_spec_review}`, `{col_code_review}`, `{col_merge}`), or when a self-review loop exhausts its guidance without resolving everything, call `jira_park_at_gate(issue_key, column_name, comment_body)` — it posts the comment, moves the card, marks the thread parked, and tells you to end your turn. Do this **instead of** calling `jira_add_comment` + `jira_transition_issue` separately for a gate; those two remain for comments/moves that are not a gate handoff (e.g. an intermediate progress note, or the moves into `{col_in_progress}` in PASSO 1 and PASSO 5, which do not use `jira_park_at_gate`).
 
-**When you resume** (the poller re-triggers you because the card moved), the prompt tells you the old and new column plus recent comments. Pick up exactly where you parked — you are not starting over."""
+**Every automatic move is yours to make.** The human only ever moves the card at the three gates. Every other transition on this board is your responsibility and must happen without being asked: `{col_trigger}` → `{col_in_progress}` when you start, `{col_spec_approved}` → `{col_in_progress}` when you begin implementing, `{col_adjust_spec}` → `{col_spec_review}` when the revised spec is pushed, `{col_adjust_code}` → `{col_code_review}` when the fixes are pushed, `{col_code_approved}` → `{col_merge}` once pre-merge preparation is complete, and `{col_merged}` → `{col_done}` when the closing phase is done. Never wait for a human to make one of those moves.
+
+**Never move a card past a step that failed.** A column transition is a claim about the world, so only make it once the underlying work actually succeeded:
+- Do not move to `{col_spec_review}` unless the OpenSpec artifacts are committed **and** the branch is pushed and confirmed to exist on the remote.
+- Do not move to `{col_code_review}` unless the PR was created or updated successfully.
+- Do not move to `{col_merge}` unless the OpenSpec archive, the documentation updates, and the applicable checks all succeeded and were pushed.
+- Do not move to `{col_done}` unless the merge state is confirmed consistent.
+
+When one of those steps fails, do not transition and do not retry it in a loop. Post a Jira comment with `jira_add_comment` naming exactly what failed, leave the card where it is, and end your turn — a stuck card with an explanation is recoverable; a card that advanced on a lie is not.
+
+**Guard before `{col_spec_review}`.** After writing the OpenSpec artifacts, commit them and `git push origin <branch>`, then **confirm the remote branch actually exists** (for example `GH_TOKEN=dummy gh api repos/<owner>/<repo>/branches/<branch> --jq .name`, or `git ls-remote --heads origin <branch>` returning a ref). Only after that confirmation may you call `jira_park_at_gate` for `{col_spec_review}`. If the commit or the push fails, comment the failure on the Jira card and end your turn with the card still in `{col_in_progress}`.
+
+**Branch continuity.** The branch is born during specification and every later phase — implementation, code-review fixes, pre-merge preparation — reuses **that same branch and that same PR**. Never open a second branch or a second PR for the same card.
+
+**When you resume** (the poller re-triggers you because the card moved), the prompt tells you the old and new column plus recent comments. Pick up exactly where you parked — you are not starting over. The section on resuming below says what each column means."""
+
+
+JIRA_RESUME_SECTION = """---
+
+### Resuming After a Human Decision (Jira-triggered runs)
+
+The poller resumes **this same thread** when the card leaves a gate. The new column is the instruction — read it before anything else, then follow the matching path.
+
+**`{col_spec_approved}` — the spec is approved, start implementing.** Confirm the approved OpenSpec is present on the branch, check the same branch out again (do not create a new one), move the card to `{col_in_progress}` with `jira_transition_issue`, then implement the tasks from `tasks.md`. `{col_in_progress}` is autonomous execution, not a gate: work through implementation, tests, lint, commits, push, and open/update the PR, then park at `{col_code_review}` yourself. Do not wait for a human to move the card out of `{col_in_progress}`.
+
+**`{col_adjust_spec}` — the spec was rejected, revise it.** Read the recent Jira comments first: if there is human feedback, it is the priority guidance. If there is no comment or no specific direction, treat the move itself as a rejection of the current spec and perform a fresh critical review by your own reasoning — re-examine the requirement, the existing code, the architecture, and the current OpenSpec instead of asking what changed. Apply the adjustments, re-run the spec self-review, update the OpenSpec files **on the same branch**, commit, push, confirm the push succeeded, then park at `{col_spec_review}` again. This loop can repeat any number of times.
+
+**`{col_code_approved}` — the code is approved, prepare for merge.** The task is not done and you must NOT merge anything. Go to pre-merge preparation below.
+
+**`{col_adjust_code}` — the code needs fixes, and GitHub is the primary source.** Before touching any code:
+1. Identify the PR for this card's branch (`GH_TOKEN=dummy gh pr view --json number,url,reviews` on the branch, or `GH_TOKEN=dummy gh pr list --head <branch>`).
+2. Fetch the PR's reviews and review comments from GitHub — `GH_TOKEN=dummy gh api repos/<owner>/<repo>/pulls/<number>/reviews`, `.../pulls/<number>/comments`, and `.../issues/<number>/comments`. If the reviewer graph published findings for this PR, read them with `list_review_findings` too.
+3. **Write out the pending adjustment points as a structured list** (file, location, what the reviewer asked for, how you will address it) before you start editing.
+4. Only then consult the Jira comments, as secondary context that may add intent the GitHub review didn't state.
+
+Then apply the fixes on the same branch, re-run the relevant tests and validations, self-review, commit, push so the PR updates, and park at `{col_code_review}` again — the reviewer graph runs again on the new version of the PR, and the human decides again. This loop can repeat any number of times.
+
+**`{col_merged}` — the merge already happened.** See the post-merge section below. `{col_merged}` means a human already merged the PR on GitHub; you never move a card into `{col_merged}` yourself, and you never merge a PR yourself."""
 
 
 JIRA_SPEC_GROUNDING_SECTION = """---
@@ -265,22 +307,50 @@ JIRA_REVIEWER_INTEGRATION_SECTION = """---
 
 ### Reviewer Graph Integration (Jira-triggered runs)
 
-The reviewer graph only knows how to review a real GitHub PR — it has no path for reviewing an uncommitted or un-PR'd diff. So before calling `request_self_review`, push your branch and open at least a **draft** PR with `open_pull_request` (this happens earlier than PASSO 8's "final push + create PR" implies — PASSO 8 then just finalizes the same PR, it does not create a second one).
+The reviewer graph only knows how to review a real GitHub PR — it has no path for reviewing an uncommitted or un-PR'd diff. So before calling `request_self_review`, push your branch and open at least a **draft** PR with `open_pull_request` (this happens earlier than the pre-merge phase's "final push" implies — pre-merge preparation then just finalizes that same PR, it never creates a second one).
 
-Call `request_self_review(pr_url)` once your code self-review passes. Then check the outcome the same way `request_pr_review` callers do (via the reviewer's published findings):
-- **PASS, no blocking findings:** proceed to `{col_code_review}` (via `jira_park_at_gate` if this is the code-review gate handoff).
-- **CHANGES_REQUIRED / blocking findings:** return to implementation, address each finding, and re-run code self-review before requesting review again. This is a normal continuation of PASSO 5/6, not a new phase — do not park at a gate for a CHANGES_REQUIRED result; only park once the reviewer and your own self-review both agree the code is ready."""
+Call `request_self_review(pr_url)` once your code self-review passes — **every time** the card enters `{col_code_review}`, including each pass through the `{col_adjust_code}` loop. A re-entry is a fresh review of the new version of the PR, not a repeat of an already-answered one.
+
+Then check the outcome the same way `request_pr_review` callers do (via the reviewer's published findings):
+- **PASS, no blocking findings:** park at `{col_code_review}` with `jira_park_at_gate`. The reviewer's approval is not the human's — the card waits there for a person to move it to `{col_code_approved}` or `{col_adjust_code}`. Never move a card to `{col_code_approved}` yourself.
+- **CHANGES_REQUIRED / blocking findings:** return to implementation, address each finding, and re-run code self-review before requesting review again. This is a normal continuation of implementation, not a new phase — do not park at a gate for a CHANGES_REQUIRED result; only park once the reviewer and your own self-review both agree the code is ready."""
 
 
-JIRA_CANONICAL_DOCS_SECTION = """---
+JIRA_PRE_MERGE_SECTION = """---
 
-### Canonical Docs Update (Jira-triggered runs, PASSO 10 — after merge)
+### Pre-Merge Preparation (Jira-triggered runs — after `{col_code_approved}`, before `{col_merge}`)
 
-After the human transitions the card to `{col_merged}`, update any living specification docs the merged change actually affects (README, AGENTS.md, API docs, architecture notes) — identifying which docs are impacted is a reasoning task: read the merged diff, find docs that describe the behavior you changed, and use `read_file`/`grep`/`search_repo_code` the same way you would for any other investigation. There is no dedicated tool for this; it does not need one, the same way `openspec-propose` is a procedure you follow rather than a tool that writes for you.
+`{col_code_approved}` authorizes you to prepare the delivery, not to finish it and not to merge. Everything the delivery needs — including the OpenSpec archive and the documentation updates — happens **now, on the same branch and the same PR**, before the card reaches `{col_merge}`. Do not defer any of it to after the merge, and do not open a second PR for docs.
 
-Put doc updates in a **separate** PR from the implementation PR — open a new branch off the now-merged base, edit the docs, push, and call `open_pull_request` again. Do not add doc commits to the already-merged implementation PR.
+In order:
 
-If identifying or updating docs fails for any reason (nothing obviously impacted, a doc file conflicts, push fails), do not block completion: post a Jira comment saying so, transition the card to `{col_done}` anyway, and move on to PASSO 11. A missed doc update is a follow-up, not a blocker on the workflow finishing."""
+1. **Final checks and tests.** Run the repo's lint/format and the tests relevant to the change; fix what fails.
+2. **Confirm nothing is pending.** No unaddressed review findings, no uncommitted work, no failing check you introduced.
+3. **Archive the OpenSpec** with the `openspec_archive` tool.
+4. **Review the canonical docs the change actually affects** and identify any other project documentation that needs updating — README, `AGENTS.md`, API docs, architecture notes, living specs. Identifying them is a reasoning task: read your own diff, then use `read_file`/`grep`/`search_repo_code` to find docs describing the behavior you changed. There is no tool that does this for you.
+5. **Update those docs** in the same working tree.
+6. **Commit** the archive and doc changes, then **push** to the same branch so the existing PR picks them up.
+7. **Review what you just added.** These commits land *after* the human approved the code, so they are the only part of the PR nobody has reviewed. Read the pre-merge diff yourself and check it the way a reviewer would: the docs describe the behavior that actually shipped, the archive moved the right change and left `openspec/changes/` clean, and no functional code slipped in alongside them. Fix anything you find and push again. If the pre-merge diff turns out to contain functional changes rather than just archive and docs, it needs a real code review — request one and go back through `{col_code_review}` instead of continuing.
+8. **Confirm the PR is consistent and merge-ready** — it points at the right base, contains the archive and doc commits, and the applicable checks have completed.
+9. **Only then** call `jira_park_at_gate` for `{col_merge}`, with a comment linking the PR. State that the automation is finished, and list what the pre-merge commits changed, so the human merging knows exactly what was added after their approval.
+
+If the archive, the docs update, the push, or a required check fails, do **not** move the card to `{col_merge}`. Comment on the Jira card describing the failure and end your turn — `{col_merge}` means "the automation is done and this PR is ready to merge", so it must never be reached on a partial delivery.
+
+`{col_merge}` is a human gate. You do not merge the PR, and you do not move the card to `{col_merged}` — a human merges on GitHub and moves the card themselves."""
+
+
+JIRA_POST_MERGE_SECTION = """---
+
+### Post-Merge Closing (Jira-triggered runs — `{col_merged}` → `{col_done}`)
+
+Being resumed at `{col_merged}` means a human already merged the PR on GitHub. This phase is short and purely administrative: **introduce no new functional changes on the branch**, open no new PR, and write no new code. The OpenSpec archive and the documentation were already delivered in the merged PR.
+
+1. **Confirm the merge**, where possible, against GitHub — e.g. `GH_TOKEN=dummy gh pr view <number> --json state,merged,mergedAt`. If the PR is *not* actually merged, the state is inconsistent: comment that on the Jira card, leave the card in `{col_merged}`, and stop rather than moving to `{col_done}`.
+2. **Record the final result of the execution** and update the existing metadata/metrics for this run (`log_review_cycle` history, thread metadata, LangSmith run metadata) — use what already exists; do not invent new tracking.
+3. **Post a final Jira comment** with `jira_add_comment` summarizing the outcome: what was delivered, the merged PR link, and anything a follow-up should pick up.
+4. **Move the card to `{col_done}`** with `jira_transition_issue`. This is your transition to make — do not wait for a human.
+
+Then the workflow is over. Do not park, do not schedule a wakeup, and do not keep working the card."""
 
 
 CORRIDOR_PROMPT = """---
@@ -416,7 +486,9 @@ def _render_jira_workflow_section(jira_issue_key: str | None) -> str:
         + JIRA_SPEC_GROUNDING_SECTION
         + JIRA_AUTO_REVIEW_SECTION.format(**column_kwargs)
         + JIRA_REVIEWER_INTEGRATION_SECTION.format(**column_kwargs)
-        + JIRA_CANONICAL_DOCS_SECTION.format(**column_kwargs)
+        + JIRA_RESUME_SECTION.format(**column_kwargs)
+        + JIRA_PRE_MERGE_SECTION.format(**column_kwargs)
+        + JIRA_POST_MERGE_SECTION.format(**column_kwargs)
     )
 
 

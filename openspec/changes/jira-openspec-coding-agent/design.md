@@ -120,15 +120,19 @@ Key constraints:
 - **Enforced counter in agent state** (the `LinearNotifyState` / `linear_messages_sent_count` pattern): deterministic and survives the run ending, but contradicts the prompt-driven philosophy and adds state plumbing for a bound the runtime already provides.
 - **Structural quality gates (separate validation agents)**: more robust, but requires new graphs and infrastructure; better suited to a later maturity level.
 
-### 6. Canonical Docs as Separate PR
+### 6. Canonical Docs and OpenSpec Archive Ship With the Implementation PR
 
-**Decision:** After the main PR is merged, the agent creates a separate PR for documentation updates (living specs, AGENTS.md, API docs).
+**Decision (revised — supersedes the original "separate PR after merge"):** the OpenSpec archive and every documentation update the change requires happen **before** the card reaches `Em Merge`, on the same branch and the same PR as the implementation. There is no post-merge docs PR.
 
 **Rationale:**
-- Keeps the implementation PR focused on code changes
-- Documentation review can happen independently
-- If the implementation PR needs revision, docs aren't prematurely updated
-- Follows the principle that docs are a distinct concern from implementation
+- `Em Merge` is defined as "the automation has finished everything it needs to do and this PR is ready for a human to merge". Work that still has to happen after the merge contradicts that definition and leaves the delivery incomplete at the moment a human is asked to accept it.
+- The reviewer and the approving human see the docs and the archive in the same diff they approve, instead of approving code whose documentation lands later and unreviewed.
+- The post-merge phase becomes purely administrative (confirm the merge, record the result, comment, move to `Done`), which is what makes it safe to run without touching the branch.
+- A second PR opened after the merge is a second review cycle, a second set of checks, and a second thing that can be forgotten — with no reviewer left watching the card.
+
+**Superseded rationale (the original decision):** keeping the implementation PR focused on code, letting docs be reviewed independently, and avoiding premature doc updates if the implementation PR needs revision. The first two are real but minor next to shipping an incomplete delivery; the third is answered by the fact that pre-merge preparation only starts after `Code Review Aprovado`, when the implementation is already settled.
+
+**Cost:** the implementation PR carries doc and archive commits, so its diff is larger. Accepted.
 
 ### 7. Branch Naming Convention
 
@@ -221,22 +225,28 @@ APPROVAL 2: Human reviews code
   │         └── "Ajustar Code" → PASSO 5 with feedback
   │
   ▼
-PASSO 8: Final tests + push + create PR (draft)
+PASSO 8: Pre-merge preparation — SAME branch, SAME PR (Decision 6, revised)
+  │         → Final checks + tests
+  │         → Archive OpenSpec (openspec_archive)
+  │         → Identify and update impacted canonical docs
+  │         → Commit + push
+  │         → Self-review the pre-merge diff (it lands after the human's
+  │           approval, so it is the one part of the PR nobody reviewed)
+  │         → Confirm the PR is consistent and merge-ready
   │         → Move to "Em Merge"
   │
   ▼
-APPROVAL 3: Human merges PR
-  │         → "Mergeado"
+APPROVAL 3: Human merges the PR on GitHub, then moves the card
+  │         → "Mergeado"   (the agent never merges and never sets this column)
   │
   ▼
-PASSO 9: Archive OpenSpec (openspec archive JIRA-XXXX)
-  │
-  ▼
-PASSO 10: Update canonical docs (separate PR)
-  │
-  ▼
-PASSO 11: Finalize (Jira comment, move to "Done", LangSmith metrics)
+PASSO 9: Post-merge closing — administrative only, no functional changes
+  │         → Confirm the PR is actually merged
+  │         → Record the final result, update existing metadata/metrics
+  │         → Final Jira comment, move to "Done"
 ```
+
+**Transition ownership.** The human moves the card at exactly three points — out of `Em Revisão de Spec`, out of `Em Code Review`, and out of `Em Merge`. Every other transition on the board is the agent's, made automatically and only after the underlying step actually succeeded: no move to `Em Revisão de Spec` without a pushed remote branch carrying the OpenSpec, no move to `Em Code Review` without a created/updated PR, no move to `Em Merge` without a successful archive + docs + checks, no move to `Done` without a confirmed merge. On failure the agent comments the reason on the card and leaves it where it is.
 
 ## File Map
 

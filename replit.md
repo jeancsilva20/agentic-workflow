@@ -63,6 +63,7 @@ Existe um `agent-console/` na raiz do repositório pai que é um protótipo anti
 - ✅ Integração Jira implementada (`agent/jira_poller.py`, `agent/prompt.py`, `agent/utils/adf.py`)
 - ✅ 11 colunas do board configuráveis via env var (bug de nomes fixos no prompt já corrigido)
 - ✅ Race condition do registro do cron do poller já corrigida
+- ✅ Fluxo alinhado ao fluxo alvo de 11 estados — ver `docs/RELATORIO_AJUSTE_FLUXO_JIRA.md` (JQL do Step B cobre os pós-gate, shadow mode cobre os dois steps, archive+docs antes de `Em Merge`, `Ajustar Code` busca reviews no GitHub)
 - ❌ Nunca validado com LLM real processando um card pelos 11 PASSOs
 - ❌ Fluxo de PR real nunca testado
 - ❌ Métricas LangSmith incompletas (tasks.md §10.1)

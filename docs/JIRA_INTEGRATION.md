@@ -38,12 +38,12 @@ Poller and column configuration (all optional, defaults shown):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JIRA_PROJECT_KEY` | `SSAI` | The Jira project the poller queries |
+| `JIRA_PROJECT_KEY` | `SSAI` | The Jira project the poller queries. Both steps of the tick page through the *whole* result set (`nextPageToken`), not just the first 50 hits — a per-tick page cap guards against a runaway query, and hitting it is logged as a warning meaning some cards went unpolled |
 | `JIRA_POLL_INTERVAL_SECONDS` | `60` | Poller tick interval. LangGraph crons have minute granularity — values under 120 collapse to "every minute"; others round down to whole minutes |
-| `JIRA_COLUMN_*` | see the board table above | Override any of the 11 column names. Read by both the poller (which only queries the trigger + 3 gate columns by name) and the system prompt (all 11) — override consistently, both sides pick up the same env var |
+| `JIRA_COLUMN_*` | see the board table above | Override any of the 11 column names. Read by both the poller (which queries the trigger column, the 3 gate columns, and the 5 post-gate columns a human moves a parked card to) and the system prompt (all 11) — override consistently, both sides pick up the same env var |
 | `JIRA_TRIGGER_JQL_FILTER` | unset | Extra JQL AND-ed onto the trigger query (e.g. `issuetype = Bug`) — the Decision 11 mitigation if `BACKLOG`-as-trigger gets noisy. Off by default |
 | `JIRA_FA_ALERT_LABEL` | `fa-alert` | Best-effort label used only to split human- vs. automation-filed cards in shadow-mode/volume logging — this is a guess; confirm the real label your monitoring integration uses |
-| `JIRA_POLLER_SHADOW_MODE` | unset (off) | `1`/`true`/`yes` to log what the poller *would* trigger without launching any threads |
+| `JIRA_POLLER_SHADOW_MODE` | unset (off) | `1`/`true`/`yes` to log what the poller *would* do without taking any real action — this covers **both** steps of the tick: no new thread is launched for a `BACKLOG` card, and no parked thread is resumed when a human moves a card out of a gate |
 | `JIRA_POLLER_PAUSED` | unset (off) | `1`/`true`/`yes` to stop new/resumed launches without tearing down the tick itself — the fast manual brake |
 
 Agent console (optional; see `agent-console/README.md` for the console's own setup):
@@ -58,7 +58,9 @@ Agent console (optional; see `agent-console/README.md` for the console's own set
 TRIGGER: card enters BACKLOG (human)
   |
   v
-PASSO 1  Collect Jira context (issue, description, acceptance criteria, comments)
+PASSO 1  Collect Jira context (issue, description, acceptance criteria, comments),
+  |      then claim the card: transition BACKLOG -> In Progress before any other work
+  |      (transition fails = comment and stop, card stays in BACKLOG)
   |
   v
 PASSO 2  Prepare environment (clone, branch feat/spec-JIRA-XXXX-descricao-curta)
@@ -96,24 +98,30 @@ GATE 2   jira_park_at_gate(Em Code Review)
   Ajustar Code (with comment)  -->  resume at PASSO 5
   |
   v
-PASSO 8  Final tests + push + finalize the PR (undraft) -> Em Merge
+PASSO 8  Pre-merge preparation, on the SAME branch and the SAME PR:
+  |        final checks + tests -> openspec_archive -> update impacted canonical
+  |        docs -> commit + push -> self-review the pre-merge diff (these commits
+  |        land after the human's approval, so nobody else reviews them; functional
+  |        code found here goes back through Em Code Review) -> confirm merge-ready
+  |      (any of these failing = the card does NOT move; the agent comments why)
   |
   v
-GATE 3   jira_park_at_gate(Em Merge)
+GATE 3   jira_park_at_gate(Em Merge)   <-- automation is finished; PR awaits a human merge
   |
-  |  (poller notices the column change)
+  |  (human merges on GitHub, then moves the card; the agent never merges,
+  |   and never sets "Mergeado" itself. The poller notices the change.)
   v
   Mergeado (human merged)  -->  resume at PASSO 9
   |
   v
-PASSO 9  Archive OpenSpec artifacts (openspec_archive)
-  |
-  v
-PASSO 10 Update canonical docs — separate PR, best-effort (failure doesn't block)
-  |
-  v
-PASSO 11 Finalize: Jira comment, transition to Done, LangSmith metadata
+PASSO 9  Post-merge closing — administrative only, no new functional changes:
+         confirm the PR is really merged, record the final result, update the
+         existing metadata/metrics, final Jira comment, transition to Done
 ```
+
+**Who moves the card.** A human moves it at exactly three points: out of `Em Revisão de Spec`, out of `Em Code Review`, and out of `Em Merge`. Every other transition is the agent's and happens automatically — `BACKLOG`→`In Progress`, `Spec Aprovada`→`In Progress`, `Ajustar Spec`→`Em Revisão de Spec`, `Ajustar Code`→`Em Code Review`, `Code Review Aprovado`→`Em Merge`, `Mergeado`→`Done`. Each of those moves is gated on the underlying step succeeding (pushed remote branch, created/updated PR, successful archive + docs + checks, confirmed merge); on failure the agent comments the reason on the card and leaves it in place rather than advancing it.
+
+**Docs and the OpenSpec archive ship inside the implementation PR**, before `Em Merge` — not in a separate post-merge PR. See design.md Decision 6 (revised) for why the earlier "separate docs PR" approach was dropped.
 
 **Design note on PASSO 7/8 ordering:** the reviewer graph has no path for reviewing a diff that isn't already a real GitHub PR — it fetches the diff via `base_sha`/`head_sha` from PR metadata. So in practice the agent opens at least a draft PR *before* calling `request_self_review` (PASSO 7), and PASSO 8 finalizes that same PR rather than creating a second one. See `openspec/changes/jira-openspec-coding-agent/tasks.md` §7.2 for the full reasoning.
 
@@ -128,6 +136,8 @@ A small read-only Flask page reporting poller health, the card queue, active/par
 **A card sits in `BACKLOG` and nothing happens.** Check: is the poller cron actually registered and ticking? `agent-console`'s status header shows "seconds since last tick" as its primary signal — if it says `no_tick_ever` or `degraded_poller`, the cron either never registered (check server startup logs for "Failed to register the Jira poller cron") or stopped ticking. Also check `JIRA_POLLER_PAUSED` isn't set.
 
 **A card sits at a gate (`Em Revisão de Spec` / `Em Code Review` / `Em Merge`) after the human already moved it.** The poller only re-triggers on the *next* tick (up to `JIRA_POLL_INTERVAL_SECONDS` of latency — irrelevant for a human-speed approval, but worth knowing). If it's been longer than that, check the console for `dead` status on that run: it means a runtime limit (model-call cap, or a `timeout_wrapup`-driven finish that never called `jira_park_at_gate`) ended the run without reaching a gate — the Jira comment `agent/middleware/notify_jira_unparked.py` posts names which limit fired.
+
+**Some cards get polled and others are ignored, seemingly at random.** Look for a `stopped paginating ... after N pages` warning in the server logs: the tick walks every page of the Jira search, but it stops at a page cap so a bad query can't run forever. Once you hit that cap, whichever cards Jira ordered last are simply never seen. Either the project has grown past what one tick can carry, or the query is matching far more than it should — narrow it with `JIRA_TRIGGER_JQL_FILTER` or check the `JIRA_COLUMN_*` names actually match the board.
 
 **`jira_transition_issue` / `jira_park_at_gate` fails with "No transition to column '...'".** Either the column name doesn't match your board exactly (check `JIRA_COLUMN_*` overrides are consistent between the poller/prompt and the actual board), or the workflow's global transitions aren't configured (see [Jira board setup](#1-jira-board-setup)) — without them, some column-to-column moves simply don't exist as transitions. The error message lists every transition actually available from the card's current state.
 
