@@ -79,6 +79,20 @@ def shadow_mode_override() -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def lite_mode_override() -> bool | None:
+    """Console-selected lite mode, or ``None`` when not set.
+
+    When ``True``, the router forces Haiku on every agent role regardless of
+    the normal routing table.  A ``None`` return means "no preference in the
+    config file" — the router treats that the same as ``False``.
+    """
+    config = read_operational_config()
+    if config is None:
+        return None
+    value = config.get("lite_mode")
+    return value if isinstance(value, bool) else None
+
+
 def polling_interval_minutes_override() -> int | None:
     """Console-selected polling interval, or ``None`` to fall back to the env var."""
     config = read_operational_config()

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..dashboard.options import DEFAULT_MODEL_ID, SUPPORTED_MODELS
+from ..operational_config import lite_mode_override
 from .capabilities import safe_effort_for, supports_effort
 from .complexity import (
     ComplexityTier,
@@ -188,6 +189,19 @@ def resolve_model(
         tier = complexity
     else:
         tier = ComplexityTier(complexity)
+
+    # Lite mode: bypass all routing logic and return Haiku unconditionally.
+    # Escalation and docs-route sub-logic are also skipped — the whole point is
+    # that no Opus or Sonnet call is made while the toggle is on.
+    if lite_mode_override():
+        return ModelConfig(
+            model=HAIKU_MODEL_ID,
+            effort=None,
+            reason="lite mode override: all roles forced to Haiku",
+            role=role,
+            complexity=tier,
+            escalation_reason=None,
+        )
 
     default_model, default_effort = _DEFAULT_ROUTES[role]
     escalation_reason: str | None = None

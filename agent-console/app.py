@@ -153,6 +153,8 @@ def _apply_to_runtime(applied: dict[str, Any], changes: list[tuple[str, Any, Any
 def _change_message(field: str, old: Any, new: Any) -> str:
     if field == "shadow_mode":
         return f"config: shadow mode {'enabled' if new else 'disabled'}"
+    if field == "lite_mode":
+        return f"config: lite mode {'enabled' if new else 'disabled'}"
     if field == "polling_interval_minutes":
         return f"config: polling interval changed from {old}m to {new}m"
     return f"config: {field} changed from {old} to {new}"

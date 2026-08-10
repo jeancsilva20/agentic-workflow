@@ -329,6 +329,14 @@
         </label>
       </div>
       <div class="config-field">
+        <span class="config-label" id="cfg-lite-label">Lite Mode</span>
+        <label class="switch">
+          <input type="checkbox" id="cfg-lite" aria-labelledby="cfg-lite-label" disabled>
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span id="cfg-lite-state" class="switch-state">—</span>
+        </label>
+      </div>
+      <div class="config-field">
         <label class="config-label" for="cfg-interval">Check Jira every</label>
         <select id="cfg-interval" disabled></select>
       </div>
@@ -897,6 +905,8 @@ let statusTimer = null;
 const cfgEls = {
   shadow: () => document.getElementById("cfg-shadow"),
   shadowState: () => document.getElementById("cfg-shadow-state"),
+  lite: () => document.getElementById("cfg-lite"),
+  liteState: () => document.getElementById("cfg-lite-state"),
   interval: () => document.getElementById("cfg-interval"),
   status: () => document.getElementById("cfg-status"),
 };
@@ -914,7 +924,7 @@ function setCfgStatus(kind, message, autoClear) {
 }
 
 function setCfgDisabled(disabled) {
-  [cfgEls.shadow(), cfgEls.interval()].forEach(el => {
+  [cfgEls.shadow(), cfgEls.lite(), cfgEls.interval()].forEach(el => {
     el.disabled = disabled;
   });
 }
@@ -963,6 +973,9 @@ function renderConfig() {
   cfgEls.shadow().checked = config.shadow_mode;
   cfgEls.shadowState().textContent = config.shadow_mode ? "ON" : "OFF";
 
+  cfgEls.lite().checked = config.lite_mode;
+  cfgEls.liteState().textContent = config.lite_mode ? "ON" : "OFF";
+
   fillSelect(
     cfgEls.interval(),
     (options.available_polling_intervals || []).map(m => ({ value: m, label: fmtInterval(m) })),
@@ -976,6 +989,7 @@ function absorbConfig(body) {
   config = {
     shadow_mode: body.shadow_mode,
     polling_interval_minutes: body.polling_interval_minutes,
+    lite_mode: body.lite_mode,
   };
   options = {
     available_polling_intervals: body.available_polling_intervals,
@@ -1037,6 +1051,10 @@ async function saveConfig(patch) {
 function wireConfigControls() {
   cfgEls.shadow().addEventListener("change", event => {
     saveConfig({ shadow_mode: event.target.checked });
+  });
+
+  cfgEls.lite().addEventListener("change", event => {
+    saveConfig({ lite_mode: event.target.checked });
   });
 
   cfgEls.interval().addEventListener("change", event => {

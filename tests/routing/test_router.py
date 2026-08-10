@@ -213,6 +213,76 @@ def test_docs_agent_mechanical_wins_over_complexity() -> None:
     assert decision.model == HAIKU_MODEL_ID
 
 
+# --- lite mode override ---------------------------------------------------
+
+
+def test_lite_mode_forces_haiku_on_every_role(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the toggle is on, no Opus or Sonnet call is ever made."""
+    from agent.routing import router
+
+    monkeypatch.setattr(router, "lite_mode_override", lambda: True)
+
+    for role in AgentRole:
+        decision = resolve_model(role)
+        assert decision.model == HAIKU_MODEL_ID, f"{role}: expected Haiku, got {decision.model}"
+        assert decision.effort is None, f"{role}: expected no effort, got {decision.effort}"
+        assert "lite mode" in decision.reason
+
+
+def test_lite_mode_bypasses_escalation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retry-count and risk signals must not override the lite mode short-circuit."""
+    from agent.routing import router
+
+    monkeypatch.setattr(router, "lite_mode_override", lambda: True)
+
+    decision = resolve_model(
+        AgentRole.CODING_AGENT,
+        retry_count=10,
+        workflow_context={"has_migration": True, "has_security": True},
+    )
+
+    assert decision.model == HAIKU_MODEL_ID
+    assert decision.effort is None
+    assert decision.escalation_reason is None
+
+
+def test_lite_mode_bypasses_docs_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The semantic docs route (Sonnet) must also be suppressed."""
+    from agent.routing import router
+
+    monkeypatch.setattr(router, "lite_mode_override", lambda: True)
+
+    for docs_mode in ("mechanical", "semantic", None):
+        ctx = {"docs_mode": docs_mode} if docs_mode is not None else {}
+        decision = resolve_model(AgentRole.DOCS_AGENT, workflow_context=ctx)
+        assert decision.model == HAIKU_MODEL_ID
+        assert decision.effort is None
+
+
+def test_lite_mode_off_restores_normal_routing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disabling the override must give back the full routing table."""
+    from agent.routing import router
+
+    monkeypatch.setattr(router, "lite_mode_override", lambda: False)
+
+    # CODE_REVIEWER is Opus by default — it must come back when lite mode is off
+    decision = resolve_model(AgentRole.CODE_REVIEWER)
+
+    assert decision.model == OPUS_MODEL_ID
+    assert decision.effort == "high"
+
+
+def test_lite_mode_none_treated_as_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``None`` from the config file (field absent) must not activate lite mode."""
+    from agent.routing import router
+
+    monkeypatch.setattr(router, "lite_mode_override", lambda: None)
+
+    decision = resolve_model(AgentRole.SPEC_REVIEWER)
+
+    assert decision.model == OPUS_MODEL_ID
+
+
 # --- capability guard -----------------------------------------------------
 
 

@@ -45,7 +45,7 @@ from agent.operational_config import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FIELDS: tuple[str, ...] = ("shadow_mode", "polling_interval_minutes")
+CONFIG_FIELDS: tuple[str, ...] = ("shadow_mode", "polling_interval_minutes", "lite_mode")
 
 _TRUTHY_ENV_VALUES = ("1", "true", "yes")
 
@@ -60,6 +60,10 @@ def available_polling_intervals() -> list[int]:
 
 def _env_shadow_mode() -> bool:
     return os.environ.get("JIRA_POLLER_SHADOW_MODE", "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def _env_lite_mode() -> bool:
+    return os.environ.get("AGENT_LITE_MODE", "").strip().lower() in _TRUTHY_ENV_VALUES
 
 
 def _env_polling_interval_minutes() -> int:
@@ -92,9 +96,14 @@ def _validate(values: Mapping[str, Any]) -> dict[str, Any]:
             + ", ".join(str(v) for v in VALID_POLLING_INTERVAL_MINUTES)
         )
 
+    lite_mode = values.get("lite_mode")
+    if not isinstance(lite_mode, bool):
+        raise ConfigValidationError("lite_mode must be a boolean")
+
     return {
         "shadow_mode": shadow_mode,
         "polling_interval_minutes": interval,
+        "lite_mode": lite_mode,
     }
 
 
@@ -199,6 +208,7 @@ class OperationalConfig:
         return {
             "shadow_mode": _env_shadow_mode(),
             "polling_interval_minutes": _env_polling_interval_minutes(),
+            "lite_mode": _env_lite_mode(),
         }
 
     def _load(self) -> dict[str, Any]:

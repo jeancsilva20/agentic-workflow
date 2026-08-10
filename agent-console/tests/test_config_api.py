@@ -51,6 +51,7 @@ def bridge(monkeypatch) -> _BridgeCalls:
 @pytest.fixture
 def client(monkeypatch, config_path, bridge):
     monkeypatch.delenv("JIRA_POLLER_SHADOW_MODE", raising=False)
+    monkeypatch.delenv("AGENT_LITE_MODE", raising=False)
     monkeypatch.setenv("JIRA_POLL_INTERVAL_SECONDS", "60")
     monkeypatch.setattr(
         app_module, "operational_config", config_store.OperationalConfig(path=config_path)
@@ -68,11 +69,12 @@ def _log_messages() -> list[str]:
 # --- GET ----------------------------------------------------------------
 
 
-def test_get_config_returns_the_two_operational_settings(client) -> None:
+def test_get_config_returns_the_three_operational_settings(client) -> None:
     body = client.get("/api/config").get_json()
 
     assert body["shadow_mode"] is False
     assert body["polling_interval_minutes"] == 1
+    assert body["lite_mode"] is False
 
 
 def test_get_config_no_longer_offers_a_model_choice(client) -> None:
@@ -102,6 +104,7 @@ def test_get_config_exposes_no_secrets(client, monkeypatch) -> None:
     assert set(body) == {
         "shadow_mode",
         "polling_interval_minutes",
+        "lite_mode",
         "available_polling_intervals",
     }
     assert "super-secret-token" not in raw
@@ -156,6 +159,64 @@ def test_put_rejects_a_non_boolean_shadow_mode(client) -> None:
 
     assert response.status_code == 400
     assert "shadow_mode" in response.get_json()["error"]
+
+
+# --- lite mode -----------------------------------------------------------
+
+
+def test_put_enables_lite_mode(client) -> None:
+    response = client.put("/api/config", json={"lite_mode": True})
+
+    assert response.status_code == 200
+    assert response.get_json()["lite_mode"] is True
+    assert client.get("/api/config").get_json()["lite_mode"] is True
+
+
+def test_put_disables_lite_mode(client) -> None:
+    client.put("/api/config", json={"lite_mode": True})
+
+    response = client.put("/api/config", json={"lite_mode": False})
+
+    assert response.get_json()["lite_mode"] is False
+    assert client.get("/api/config").get_json()["lite_mode"] is False
+
+
+def test_lite_mode_toggle_is_written_to_the_execution_log(client) -> None:
+    client.put("/api/config", json={"lite_mode": True})
+    client.put("/api/config", json={"lite_mode": False})
+
+    messages = _log_messages()
+    assert "config: lite mode enabled" in messages
+    assert "config: lite mode disabled" in messages
+
+
+def test_lite_mode_from_the_api_is_visible_to_the_router(client) -> None:
+    """The whole point of the toggle: the poller process must see it via the shared file."""
+    from agent.operational_config import lite_mode_override
+
+    client.put("/api/config", json={"lite_mode": True})
+    assert lite_mode_override() is True
+
+    client.put("/api/config", json={"lite_mode": False})
+    assert lite_mode_override() is False
+
+
+def test_put_rejects_a_non_boolean_lite_mode(client) -> None:
+    response = client.put("/api/config", json={"lite_mode": "yes"})
+
+    assert response.status_code == 400
+    assert "lite_mode" in response.get_json()["error"]
+
+
+def test_lite_mode_env_seed(monkeypatch, tmp_path) -> None:
+    """``AGENT_LITE_MODE=true`` lets an operator bake lite mode into a deployment."""
+    monkeypatch.setenv("AGENT_LITE_MODE", "true")
+    monkeypatch.setenv("JIRA_POLL_INTERVAL_SECONDS", "60")
+    monkeypatch.delenv("JIRA_POLLER_SHADOW_MODE", raising=False)
+
+    store = config_store.OperationalConfig(path=tmp_path / "cfg.json")
+
+    assert store.get()["lite_mode"] is True
 
 
 # --- routing table -------------------------------------------------------
@@ -239,19 +300,19 @@ def test_unchanged_interval_does_not_touch_the_cron(client, bridge) -> None:
 
 
 def test_configuration_survives_a_restart(client, config_path) -> None:
-    client.put("/api/config", json={"shadow_mode": True, "polling_interval_minutes": 30})
+    client.put("/api/config", json={"shadow_mode": True, "polling_interval_minutes": 30, "lite_mode": True})
 
     reloaded = config_store.OperationalConfig(path=config_path).get()
 
-    assert reloaded == {"shadow_mode": True, "polling_interval_minutes": 30}
+    assert reloaded == {"shadow_mode": True, "polling_interval_minutes": 30, "lite_mode": True}
 
 
-def test_persisted_file_holds_only_the_two_settings(client, config_path) -> None:
+def test_persisted_file_holds_only_the_three_settings(client, config_path) -> None:
     client.put("/api/config", json={"shadow_mode": True})
 
     stored = json.loads(config_path.read_text())
 
-    assert set(stored) == {"shadow_mode", "polling_interval_minutes"}
+    assert set(stored) == {"shadow_mode", "polling_interval_minutes", "lite_mode"}
     assert os.environ.get("JIRA_API_TOKEN") not in stored.values()
 
 
