@@ -29,6 +29,13 @@ Este é o **Open SWE** (framework open-source de coding agent em LangGraph + Dee
 
 O servidor usa `langgraph dev` a partir da raiz do projeto. Um `.env` mínimo com `SANDBOX_TYPE=local` é suficiente para o servidor subir — mas sem as credenciais abaixo nenhuma ação útil ocorre.
 
+### Modelos LLM configurados
+
+- **Padrão do agente e dos subagentes:** `anthropic:claude-haiku-4-5-20251001`, esforço `low`
+- **Modelo Anthropic disponível para uma regra futura:** `anthropic:claude-sonnet-5`
+- O Sonnet não é usado automaticamente como fallback; a seleção dele deverá ser feita por uma regra explícita quando o cenário estiver definido.
+- O catálogo da aplicação ainda contém opções legadas de outros provedores para compatibilidade com perfis e telas existentes, mas o default operacional deste ambiente é Anthropic Haiku.
+
 ### Secrets necessários
 
 | Variável | Finalidade | Obrigatório para rodar? |

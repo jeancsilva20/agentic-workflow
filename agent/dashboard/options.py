@@ -19,6 +19,13 @@ class ModelOption(TypedDict):
 
 SUPPORTED_MODELS: list[ModelOption] = [
     {
+        "id": "anthropic:claude-haiku-4-5-20251001",
+        "label": "Claude Haiku 4.5",
+        "efforts": ["low", "medium", "high", "xhigh", "max"],
+        "default_effort": "low",
+        "supports_images": True,
+    },
+    {
         "id": "anthropic:claude-opus-5",
         "label": "Opus 5",
         "efforts": ["low", "medium", "high", "xhigh", "max"],
@@ -27,7 +34,7 @@ SUPPORTED_MODELS: list[ModelOption] = [
     },
     {
         "id": "anthropic:claude-sonnet-5",
-        "label": "Sonnet 5",
+        "label": "Claude Sonnet 5",
         "efforts": ["low", "medium", "high", "xhigh", "max"],
         "default_effort": "high",
         "supports_images": True,
@@ -102,7 +109,7 @@ FABLE_MODEL_IDS: frozenset[str] = frozenset(
 # instead of being discarded, so a user who never revisits their settings keeps an
 # equivalent model rather than silently inheriting the team default.
 DEPRECATED_MODEL_REPLACEMENTS: dict[str, str] = {
-    "anthropic:claude-opus-4-8": "anthropic:claude-opus-5",
+    "anthropic:claude-opus-4-8": "anthropic:claude-sonnet-5",
     "openai:gpt-5.5": "openai:gpt-5.6-sol",
     "google_genai:gemini-3.5-flash": "google_genai:gemini-3.6-flash",
     "fireworks:accounts/fireworks/models/kimi-k2p7-code": (
@@ -199,8 +206,8 @@ def gate_fable_model(
     return model_id, effort
 
 
-DEFAULT_MODEL_ID: str = "openai:gpt-5.6-sol"
-DEFAULT_MODEL_EFFORT: str = "medium"
+DEFAULT_MODEL_ID: str = "anthropic:claude-haiku-4-5-20251001"
+DEFAULT_MODEL_EFFORT: str = "low"
 
 
 def model_supports_effort(model_id: str, effort: str) -> bool:

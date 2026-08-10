@@ -167,16 +167,12 @@ def make_model(model_id: str, *, use_gateway: bool | None = None, **kwargs: Unpa
 
 
 def fallback_model_id_for(primary_model_id: str) -> str | None:
-    """Return the cross-provider fallback model id for a given primary, if any.
+    """Return an automatic fallback model id for a given primary, if any.
 
-    Anthropic primaries fall back to OpenAI and vice versa. Returns ``None``
-    when the provider has no configured cross-provider fallback (e.g. Google,
-    local, or self-hosted providers we don't want to silently route off-host).
+    Anthropic is intentionally kept on the configured Haiku model for now.
+    Sonnet is reserved for a future explicit routing rule rather than being
+    selected automatically after a Haiku failure.
     """
-    if primary_model_id.startswith("anthropic:"):
-        return "openai:gpt-5.6-sol"
-    if primary_model_id.startswith("openai:"):
-        return "anthropic:claude-opus-5"
     return None
 
 
