@@ -15,6 +15,8 @@ JIRA_POLLER_SHADOW_MODE = "1"
 JIRA_PROJECT_KEY = "SSAI"
 SANDBOX_TYPE = "local"
 LANGGRAPH_URL = "http://localhost:8000"
+DEFAULT_REPO_NAME = "sensedia-backend-case"
+DEFAULT_REPO_OWNER = "guilhermeallen"
 
 [workflows]
 runButton = "Project"
