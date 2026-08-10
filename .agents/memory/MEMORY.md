@@ -6,4 +6,5 @@
 - [Prompt Jira e .format](jira-prompt-formatting.md) — as seções são templates com kwargs fixos; placeholder novo entre chaves vira KeyError em runtime
 - [Config operacional em runtime](console-runtime-config.md) — console escreve arquivo/poller lê no tick, loop asyncio único, um cron só, falha de efeito colateral vira warning
 - [Telemetria entre os dois processos](console-telemetry-mirror.md) — console espelha as stores do agente por eventos, nunca chama serviço externo; custo desconhecido é null, não 0.0
+- [Base errada de branch parece regressão](branch-base-drift.md) — funcionalidade "sumiu"? checar `git merge-base HEAD main` antes do código; corrigir sobre base velha reimplementa o que já existe
 - [Roteamento de modelo por papel](model-routing.md) — modelo/effort vêm do papel do agente, sem override; effort não suportado é derrubado, não trocado; perfil ainda exibe modelo sem escolher nada
