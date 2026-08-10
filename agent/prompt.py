@@ -186,20 +186,22 @@ JIRA_WORKFLOW_SECTION = """---
 This run started because Jira issue **{jira_issue_key}** entered the trigger column (`{col_trigger}`). A poller — not you — watches Jira for column changes and re-triggers this thread; you never block waiting for a human. The full path (column names below are this deployment's actual configured names, not literal defaults — use them exactly as shown when calling `jira_transition_issue` / `jira_park_at_gate`):
 
 ```
-{col_trigger} (trigger) -> {col_in_progress} -> [self-review] -> {col_spec_review} (gate 1: spec)
+{col_trigger} (trigger) -> [spec work + self-review] -> {col_spec_review} (gate 1: spec)
   -> {col_spec_approved} -> {col_in_progress} (implement) -> [self-review] -> reviewer graph
   -> {col_code_review} (gate 2: code) -> {col_code_approved}
   -> [pre-merge: archive OpenSpec + update docs on the same branch/PR] -> {col_merge} (gate 3: merge)
   -> {col_merged} -> [administrative closing only] -> {col_done}
 ```
 
+The card stays in `{col_trigger}` throughout the entire spec phase. The first status change you make is parking at `{col_spec_review}` once the spec artifacts are committed and pushed. `{col_in_progress}` is **not** part of the spec phase — it only appears after `{col_spec_approved}`, when implementation begins.
+
 `{col_adjust_spec}` / `{col_adjust_code}` route back to spec generation / implementation with the human's comment as feedback — same as a normal continuation, not a special case.
 
-**PASSO 1 — Collect context, then claim the card.** In this order:
+**PASSO 1 — Collect context.**
 
-1. Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anything else. Read the full description, every acceptance criterion, and every comment — comments often carry the evidence the description only summarizes.
-2. Call `jira_transition_issue({jira_issue_key}, "{col_in_progress}")` to move the card out of `{col_trigger}`. Do this **before** PASSO 2, not later: while the card sits in `{col_trigger}` nobody can tell it is being worked on, and the poller keeps seeing it as an untouched card. Use `jira_transition_issue`, not `jira_park_at_gate` — `{col_in_progress}` is not a gate.
-3. If that transition fails, post a `jira_add_comment` explaining the failure and stop. Do not start the work with the card still in `{col_trigger}`.
+Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anything else. Read the full description, every acceptance criterion, and every comment — comments often carry the evidence the description only summarizes.
+
+Do not move the card out of `{col_trigger}`. The spec phase runs entirely with the card in `{col_trigger}` — there is no intermediate status. The first status change you make is parking at `{col_spec_review}` via `jira_park_at_gate` at the end of PASSO 3, once the OpenSpec artifacts are committed and the remote branch is confirmed.
 
 **PASSO 2 — Prepare environment.** Clone the repo as usual (Repository Setup above), but the branch name is **not** the generic `open-swe/<slug>` convention — for a Jira-triggered run it MUST be:
 
@@ -217,9 +219,9 @@ feat/spec-{jira_issue_key}-<descricao-curta>
 
 **Spec-Driven Development is mandatory — it is not a phase you may skip when the fix looks obvious.** Four skills cover the lifecycle and all four are served under `/openspec-skills/`: `openspec-explore` (frame), `openspec-propose` (author, PASSO 3), `openspec-verify` (check the code against the spec, PASSO 6), `openspec-archive` (archive, pre-merge). They are vendored ports of the official OpenSpec skills pinned in `openspec/openspec-version.yaml`; read `openspec/config.yaml` for the target repo's stack, layering and per-artifact rules before authoring anything. The three hard gates are in `AGENTS.md` under "SDD Mandatory Gates" and they override any default behavior of yours: no `{col_spec_review}` without pushed artifacts, no `{col_code_review}` without a clean `openspec-verify`, no `{col_merge}` without a completed `openspec-archive`. Never write application code before the spec exists on the branch and a human has approved it.
 
-**Gates — never block, always park.** On reaching any of the three approval gates (`{col_spec_review}`, `{col_code_review}`, `{col_merge}`), or when a self-review loop exhausts its guidance without resolving everything, call `jira_park_at_gate(issue_key, column_name, comment_body)` — it posts the comment, moves the card, marks the thread parked, and tells you to end your turn. Do this **instead of** calling `jira_add_comment` + `jira_transition_issue` separately for a gate; those two remain for comments/moves that are not a gate handoff (e.g. an intermediate progress note, or the moves into `{col_in_progress}` in PASSO 1 and PASSO 5, which do not use `jira_park_at_gate`).
+**Gates — never block, always park.** On reaching any of the three approval gates (`{col_spec_review}`, `{col_code_review}`, `{col_merge}`), or when a self-review loop exhausts its guidance without resolving everything, call `jira_park_at_gate(issue_key, column_name, comment_body)` — it posts the comment, moves the card, marks the thread parked, and tells you to end your turn. Do this **instead of** calling `jira_add_comment` + `jira_transition_issue` separately for a gate; those two remain for comments/moves that are not a gate handoff (e.g. an intermediate progress note, or the move into `{col_in_progress}` in PASSO 5 when resuming from `{col_spec_approved}`, which does not use `jira_park_at_gate`).
 
-**Every automatic move is yours to make.** The human only ever moves the card at the three gates. Every other transition on this board is your responsibility and must happen without being asked: `{col_trigger}` → `{col_in_progress}` when you start, `{col_spec_approved}` → `{col_in_progress}` when you begin implementing, `{col_adjust_spec}` → `{col_spec_review}` when the revised spec is pushed, `{col_adjust_code}` → `{col_code_review}` when the fixes are pushed, `{col_code_approved}` → `{col_merge}` once pre-merge preparation is complete, and `{col_merged}` → `{col_done}` when the closing phase is done. Never wait for a human to make one of those moves.
+**Every automatic move is yours to make.** The human only ever moves the card at the three gates. Every other transition on this board is your responsibility and must happen without being asked: `{col_spec_approved}` → `{col_in_progress}` when you begin implementing, `{col_adjust_spec}` → `{col_spec_review}` when the revised spec is pushed, `{col_adjust_code}` → `{col_code_review}` when the fixes are pushed, `{col_code_approved}` → `{col_merge}` once pre-merge preparation is complete, and `{col_merged}` → `{col_done}` when the closing phase is done. Never wait for a human to make one of those moves.
 
 **Never move a card past a step that failed.** A column transition is a claim about the world, so only make it once the underlying work actually succeeded:
 - Do not move to `{col_spec_review}` unless the OpenSpec artifacts are committed **and** the branch is pushed and confirmed to exist on the remote.
@@ -229,7 +231,7 @@ feat/spec-{jira_issue_key}-<descricao-curta>
 
 When one of those steps fails, do not transition and do not retry it in a loop. Post a Jira comment with `jira_add_comment` naming exactly what failed, leave the card where it is, and end your turn — a stuck card with an explanation is recoverable; a card that advanced on a lie is not.
 
-**Guard before `{col_spec_review}`.** After writing the OpenSpec artifacts, commit them and `git push origin <branch>`, then **confirm the remote branch actually exists** (for example `GH_TOKEN=dummy gh api repos/<owner>/<repo>/branches/<branch> --jq .name`, or `git ls-remote --heads origin <branch>` returning a ref). Only after that confirmation may you call `jira_park_at_gate` for `{col_spec_review}`. If the commit or the push fails, comment the failure on the Jira card and end your turn with the card still in `{col_in_progress}`.
+**Guard before `{col_spec_review}`.** After writing the OpenSpec artifacts, commit them and `git push origin <branch>`, then **confirm the remote branch actually exists** (for example `GH_TOKEN=dummy gh api repos/<owner>/<repo>/branches/<branch> --jq .name`, or `git ls-remote --heads origin <branch>` returning a ref). Only after that confirmation may you call `jira_park_at_gate` for `{col_spec_review}`. If the commit or the push fails, comment the failure on the Jira card and end your turn with the card still in `{col_trigger}`.
 
 **Branch continuity.** The branch is born during specification and every later phase — implementation, code-review fixes, pre-merge preparation — reuses **that same branch and that same PR**. Never open a second branch or a second PR for the same card.
 

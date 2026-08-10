@@ -113,26 +113,33 @@ def test_prompt_never_auto_merges_or_self_approves() -> None:
     assert "you never merge a PR yourself" in prompt
 
 
-def test_prompt_orders_the_initial_transition_before_any_spec_work() -> None:
-    """`BACKLOG` -> `In Progress` has to be an ordered instruction inside PASSO 1,
-    not just a claim in the ownership list.
+def test_prompt_spec_phase_does_not_move_card_to_in_progress() -> None:
+    """The spec phase must NOT move the card to ``In Progress``.
 
-    Without it the card stays in the trigger column while the agent specs and
-    even reaches the spec-review gate, so nobody looking at the board can tell
-    the work started.
+    The card stays in the trigger column (``BACKLOG``) for the entire spec
+    phase.  The first agent-initiated status change is parking at
+    ``Em Revisão de Spec`` via ``jira_park_at_gate`` — never an intermediate
+    move to ``In Progress``.
+
+    ``In Progress`` belongs exclusively to the implementation phase that
+    begins when the agent resumes from ``Spec Aprovada``.
     """
     prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
 
     passo_1 = prompt.split("**PASSO 1", 1)[1].split("**PASSO 2", 1)[0]
-    assert 'jira_transition_issue(SSAI-42, "In Progress")' in passo_1
-    assert "is not a gate" in passo_1
-    # And it must be ordered before the environment/spec work, not after.
-    assert prompt.index('jira_transition_issue(SSAI-42, "In Progress")') < prompt.index(
+    # PASSO 1 must NOT instruct a transition to In Progress.
+    assert 'jira_transition_issue(SSAI-42, "In Progress")' not in passo_1
+    # PASSO 1 should explicitly say the card stays in the trigger column.
+    assert "Do not move the card out of `BACKLOG`" in passo_1
+    # The spec phase note must appear before PASSO 3 so the agent cannot
+    # miss it on its way to writing the spec.
+    assert prompt.index("Do not move the card out of `BACKLOG`") < prompt.index(
         "**PASSO 3 — Analyze code and generate the spec.**"
     )
-    # A failed claim leaves the card where it is, with an explanation.
-    assert "If that transition fails" in passo_1
-    assert "Do not start the work with the card still in `BACKLOG`" in passo_1
+    # The first transition mentioned for the spec phase is the gate park.
+    assert "jira_park_at_gate" in passo_1
+    assert "col_spec_review" not in passo_1  # rendered, not raw placeholder
+    assert "Em Revisão de Spec" in passo_1
 
 
 def test_prompt_reviews_the_pre_merge_commits_before_parking_at_the_merge_gate() -> None:
@@ -155,7 +162,7 @@ def test_prompt_makes_the_agent_own_every_non_gate_transition() -> None:
 
     ownership = prompt.split("**Every automatic move is yours to make.**", 1)[1].split("\n\n", 1)[0]
     for transition in (
-        "`BACKLOG` → `In Progress`",
+        # Implementation start — the ONLY time the agent moves to In Progress.
         "`Spec Aprovada` → `In Progress`",
         "`Ajustar Spec` → `Em Revisão de Spec`",
         "`Ajustar Code` → `Em Code Review`",
@@ -163,6 +170,9 @@ def test_prompt_makes_the_agent_own_every_non_gate_transition() -> None:
         "`Mergeado` → `Done`",
     ):
         assert transition in ownership
+    # BACKLOG → In Progress must NOT appear: the spec phase keeps the card in
+    # the trigger column; In Progress is reserved for implementation only.
+    assert "`BACKLOG` → `In Progress`" not in ownership
 
 
 def test_prompt_runs_the_reviewer_on_every_code_review_entry() -> None:

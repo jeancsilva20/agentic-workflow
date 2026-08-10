@@ -37,11 +37,23 @@ logger = logging.getLogger(__name__)
 JIRA_POLL_INTERVAL_SECONDS = int(os.environ.get("JIRA_POLL_INTERVAL_SECONDS") or "60")
 JIRA_PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "SSAI")
 
-# Column names — configurable via env vars, defaults match design.md's Jira
-# Column Configuration table (task 5.6). All 11 columns are covered, not just
-# the ones the poller itself queries by name (COLUMN_TRIGGER and the three
-# gate columns) — agent/prompt.py's JIRA_WORKFLOW_SECTION reads every one of
-# these so the prompt never drifts from an operator's env-var overrides.
+# Jira status strings — these are the *API-level status names* sent to the
+# Jira transitions endpoint and used in JQL queries (e.g. `status = "BACKLOG"`).
+# They also happen to equal the visual column labels on the SSAI board, but
+# the two concepts are distinct:
+#
+#   Jira status (API term)  → what jira_transition_issue / JQL receive
+#   Column label (UI term)  → what a human sees on the board
+#
+# Configurable via env vars; defaults match the SSAI board audit documented
+# in agent/jira_statuses.py. All 11 statuses are covered, not just the ones
+# the poller queries directly — agent/prompt.py reads every one so the prompt
+# never drifts from an operator's env-var override.
+#
+# Naming note: "COLUMN_*" is a historical name; these constants hold *status*
+# strings (the API identifier), not visual column labels (the UI term). See
+# agent/jira_statuses.py for the full mapping with the distinction made
+# explicit.
 COLUMN_TRIGGER = os.environ.get("JIRA_COLUMN_TRIGGER", "BACKLOG")
 COLUMN_IN_PROGRESS = os.environ.get("JIRA_COLUMN_IN_PROGRESS", "In Progress")
 COLUMN_SPEC_REVIEW = os.environ.get("JIRA_COLUMN_SPEC_REVIEW", "Em Revisão de Spec")

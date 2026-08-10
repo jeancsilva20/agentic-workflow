@@ -65,12 +65,13 @@ Nada impedia o card de ir para `Em Revisão de Spec` com a OpenSpec ainda não c
 
 | Arquivo | Mudança |
 |---|---|
-| `agent/jira_poller.py` | JQL do Step B expandido para as 8 colunas relevantes; shadow mode aplicado ao Step B |
-| `agent/prompt.py` | Guard pré-`Em Revisão de Spec`; matriz de transições automáticas; seção de retomada por coluna; preparação pré-merge; fechamento pós-merge; reviewer re-executa a cada entrada em `Em Code Review` |
+| `agent/jira_statuses.py` | **Novo.** Módulo central de mapeamento status Jira ↔ coluna visual; inclui resultado de auditoria da API do board SSAI |
+| `agent/jira_poller.py` | JQL do Step B expandido para as 8 colunas relevantes; shadow mode aplicado ao Step B; comentários das constantes `COLUMN_*` atualizados para distinguir "status API" de "label visual" |
+| `agent/prompt.py` | Diagrama de fluxo corrigido (spec phase sem `In Progress`); PASSO 1 corrigido (remove instrução de mover para `In Progress`); guard pré-spec-review atualizado; lista de transições automáticas corrigida; seção de retomada por coluna; preparação pré-merge; fechamento pós-merge; reviewer re-executa a cada entrada em `Em Code Review` |
 | `openspec/changes/jira-openspec-coding-agent/design.md` | Decision 6 revisada (archive + docs na mesma PR, não em PR separada); diagrama de fluxo atualizado; seção de responsabilidade por transição |
 | `docs/JIRA_INTEGRATION.md` | Diagrama operacional atualizado; quem move cada coluna; escopo real do shadow mode e do JQL do poller |
 | `tests/agent/test_jira_poller.py` | +9 testes (JQL expandido, overrides, dedup, 5 decisões humanas, shadow/paused no Step B, idempotência de tick repetido) |
-| `tests/agent/test_jira_prompt.py` | +7 testes (guard, archive/docs antes do merge, pós-merge administrativo, fonte GitHub no `Ajustar Code`, não auto-aprova/não auto-merge, transições próprias, reviewer a cada ciclo) |
+| `tests/agent/test_jira_prompt.py` | Teste `test_prompt_orders_the_initial_transition_before_any_spec_work` substituído por `test_prompt_spec_phase_does_not_move_card_to_in_progress` (inverte a asserção: corrige o erro do fluxo de spec); `test_prompt_makes_the_agent_own_every_non_gate_transition` atualizado (remove `BACKLOG → In Progress`) |
 | `tests/agent/test_jira_workflow_integration.py` | Fluxo completo estendido até `Mergeado → Done`; +3 testes de ciclo (loop `Ajustar Spec`, loop `Ajustar Code`, retomada pós-merge) |
 
 ---
@@ -96,19 +97,50 @@ As colunas são lidas em tempo de chamada (`_gate_columns()` / `_post_gate_colum
 
 Shadow mode agora vale para o Step B: loga `[shadow] would resume thread for {issue_key}: {parked_column} → {current_column}`, e não lê comentários, não dispara run, não altera metadados.
 
-### 4.2 Prompt (`agent/prompt.py`)
+### 4.2 Prompt (`agent/prompt.py`) — rodada anterior
 
 Cinco blocos novos/reescritos, todos com nomes de coluna vindos das env vars:
 
-- **PASSO 1 passa a reivindicar o card** — a transição `BACKLOG` → `In Progress` virou passo ordenado dentro do PASSO 1, antes de preparar ambiente e antes de gerar spec. Antes ela só existia como afirmação de responsabilidade, sem instrução executável: o card podia ficar em `BACKLOG` durante toda a especificação e chegar ao gate de spec sem nunca ter saído da coluna de gatilho — quem olhasse o board não teria como saber que o trabalho começou. Transição falhou → comentar e parar, sem começar o trabalho.
-- **Matriz de transições automáticas** — deixa explícito que o humano só move o card em três pontos e que todas as outras seis transições são do agente, feitas sem pedir permissão. Cada uma condicionada ao passo correspondente ter dado certo (branch remota, PR criada/atualizada, archive+docs+checks, merge confirmado). Em caso de falha: comentar no Jira, não mover o card, encerrar o turno — sem loop de retry.
-- **Guard pré-`Em Revisão de Spec`** — commit, push e **confirmação de que a branch remota existe** (`gh api .../branches/<branch>` ou `git ls-remote --heads origin <branch>`) antes de chamar `jira_park_at_gate`.
-- **Seção de retomada por coluna** — o que fazer ao voltar em cada um dos cinco pós-gates. Inclui o caso de `Ajustar Spec` sem comentário (tratar a movimentação como rejeição e fazer revisão crítica por raciocínio próprio) e o de `Ajustar Code` (buscar reviews/comentários da PR no GitHub via `gh api .../pulls/<n>/reviews`, `/comments`, `/issues/<n>/comments` e `list_review_findings`; listar os pontos pendentes de forma estruturada; só depois consultar o Jira como contexto secundário).
-- **Pré-merge e pós-merge** — checks e testes finais → `openspec_archive` → identificar e atualizar docs impactadas → commit + push na mesma branch → **self-review do diff pré-merge** → confirmar PR consistente → `Em Merge`. E, no retorno em `Mergeado`, apenas confirmação do merge, registro do resultado, comentário final e `Done`.
-
-  O self-review existe porque esses commits entram **depois** da aprovação humana do código: são a única parte da PR que ninguém revisou. O agente lê o próprio diff pré-merge e confere que a documentação descreve o que de fato foi entregue e que o archive moveu a mudança certa. Se o diff contiver código funcional em vez de só archive e docs, ele volta pelo `Em Code Review` em vez de seguir para o gate de merge.
+- **Matriz de transições automáticas** — deixa explícito que o humano só move o card em três pontos e que as demais transições são do agente.
+- **Guard pré-`Em Revisão de Spec`** — commit, push e confirmação da branch remota antes de chamar `jira_park_at_gate`.
+- **Seção de retomada por coluna** — o que fazer ao voltar em cada um dos cinco pós-gates.
+- **Pré-merge e pós-merge** — archive e docs na mesma branch/PR; self-review do diff pré-merge.
 
 A instrução de PR separada de docs foi removida.
+
+### 4.3 Módulo central de statuses (`agent/jira_statuses.py`) — adicionado nesta rodada
+
+Novo módulo com fonte de verdade para o mapeamento completo das 11 etapas do workflow:
+
+- `TransitionInitiator` — enum que distingue quem move o card para cada coluna: `HUMAN`, `AGENT_AUTO`, `AGENT_GATE`.
+- `WorkflowStep` — dataclass com `jira_status` (string da API), `column_label` (label visual), `env_var`, `poller_constant`, `transition_initiator` e `description`.
+- `WORKFLOW_STEPS` — tupla com todos os 11 passos documentados, incluindo a nota crítica de que a fase de spec corre inteiramente com o card em `BACKLOG`.
+- Resultado da auditoria da API do board SSAI: **nenhuma divergência** — os defaults de `jira_poller.py` são exatamente os nomes de status retornados pelo endpoint de transições.
+- Funções auxiliares: `get_workflow_step`, `gate_steps`, `post_gate_steps`.
+
+### 4.4 Correção do fluxo da fase de spec no prompt — adicionado nesta rodada
+
+Dois erros estruturais corrigidos:
+
+**Erro 1 — PASSO 1 mandava o agente mover o card para `In Progress` antes de qualquer trabalho de spec.**
+
+O prompt anterior tinha em PASSO 1 a instrução `jira_transition_issue({issue}, "In Progress")`, fazendo o card aparecer em "Em Desenvolvimento" enquanto o agente ainda escrevia a spec. O fluxo correto é: o card permanece em `BACKLOG` durante toda a fase de spec; a primeira mudança de status é o estacionamento em `Em Revisão de Spec` via `jira_park_at_gate`. `In Progress` só aparece quando o agente retoma de `Spec Aprovada` para iniciar a implementação.
+
+Mudanças específicas:
+- Diagrama de fluxo: `{col_trigger} -> {col_in_progress} -> [self-review] -> {col_spec_review}` corrigido para `{col_trigger} -> [spec work + self-review] -> {col_spec_review}`.
+- PASSO 1 reescrito: remove a instrução de transição, adiciona nota explícita de que o card fica em `{col_trigger}` durante todo o spec.
+- "Every automatic move" corrigido: remove `{col_trigger}` → `{col_in_progress}` da lista (não é mais uma transição do agente na fase de spec).
+- "Guard before `Em Revisão de Spec`": corrigido de "card still in `{col_in_progress}`" para "card still in `{col_trigger}`".
+- "Gates" section: corrigido de "moves into `{col_in_progress}` in PASSO 1 and PASSO 5" para "move into `{col_in_progress}` in PASSO 5 when resuming from `{col_spec_approved}`".
+
+**Erro 2 — constantes `COLUMN_*` do poller sem distinção explícita entre "status API" e "label visual".**
+
+Os comentários do bloco `COLUMN_*` em `jira_poller.py` foram atualizados para deixar explícita a diferença conceitual entre status (enviado à API, usado em JQL) e label de coluna (exibido para humanos). A distinção completa com os 11 passos vive em `agent/jira_statuses.py`.
+
+### 4.5 Atualização dos testes — adicionado nesta rodada
+
+- `test_prompt_orders_the_initial_transition_before_any_spec_work` substituído por `test_prompt_spec_phase_does_not_move_card_to_in_progress`, que inverte as asserções: agora verifica que PASSO 1 **não** contém a transição para `In Progress` e que a spec phase mantém o card no trigger.
+- `test_prompt_makes_the_agent_own_every_non_gate_transition`: removeu `BACKLOG → In Progress` da lista de transições esperadas; adicionou asserção negativa explícita.
 
 ---
 

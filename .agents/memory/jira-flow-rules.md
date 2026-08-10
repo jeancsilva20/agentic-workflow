@@ -25,6 +25,16 @@ O humano move em exatamente três pontos: sair de `Em Revisão de Spec`, de `Em 
 
 O agente **nunca** move para `Code Review Aprovado`, **nunca** move para `Mergeado`, **nunca** faz merge de PR. `Mergeado` é semanticamente "o merge já aconteceu no GitHub".
 
+## A fase de spec corre inteiramente em BACKLOG — sem passar por `In Progress`
+
+O card permanece em `BACKLOG` (a trigger column) durante toda a fase de escrita da spec. A primeira mudança de status que o agente faz é estacionar em `Em Revisão de Spec` via `jira_park_at_gate`, depois de commitar e fazer push dos artefatos OpenSpec.
+
+`In Progress` só é usado quando o agente retoma de `Spec Aprovada` — é o primeiro ato da fase de implementação, não da spec.
+
+**Why:** o prompt anterior mandava `BACKLOG → In Progress` como passo 2 do PASSO 1 (antes de escrever qualquer spec). Isso fazia o card aparecer em "Em Desenvolvimento" enquanto o agente ainda estava escrevendo a spec — estado visual errado para humanos olhando o board, e conceitualmente incorreto porque `In Progress` deve significar "implementação em andamento".
+
+**How to apply:** prompts, diagramas e testes que mostram o fluxo da fase de spec NÃO devem incluir `In Progress` entre `BACKLOG` e `Em Revisão de Spec`. O arquivo `agent/jira_statuses.py` documenta o mapeamento completo com a distinção status-API vs label-visual.
+
 **How to apply:** cada transição automática é condicionada ao passo ter dado certo (branch remota confirmada, PR criada/atualizada, archive+docs+checks OK, merge confirmado). Falhou → comentar no Jira, não mover, encerrar o turno. Card parado com explicação é recuperável; card que avançou mentindo não é.
 
 ## Archive da OpenSpec e docs vão ANTES do merge
