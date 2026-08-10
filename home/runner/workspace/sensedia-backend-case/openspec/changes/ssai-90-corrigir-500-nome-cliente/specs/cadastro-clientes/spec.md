@@ -1,6 +1,6 @@
 # cadastro-clientes
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Validação de nome do cliente ao cadastrar
 O sistema SHALL rejeitar a criação de um cliente cujo nome contenha um ou mais números, retornando um erro de requisição inválida do cliente (HTTP 400) com uma mensagem explicando o motivo — nunca um erro de servidor (HTTP 500).

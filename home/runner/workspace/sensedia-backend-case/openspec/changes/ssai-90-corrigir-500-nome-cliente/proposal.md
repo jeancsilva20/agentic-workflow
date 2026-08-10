@@ -15,10 +15,10 @@ A recomendação do alerta ("ajustar validação para permitir números ou norma
 ## Capabilities
 
 ### New Capabilities
-(nenhuma)
+- `cadastro-clientes` — não existe ainda um capability canônico em `openspec/specs/` para o cadastro de clientes; esta mudança introduz seus requisitos formalmente (incluindo os dois já satisfeitos hoje, CPF e e-mail duplicados, documentados aqui para registrar o padrão de erro que a correção do nome passa a seguir), com foco na correção do requisito de validação de nome numérico.
 
 ### Modified Capabilities
-- `cadastro-clientes` — o requisito de validação de nome numérico passa a retornar 400 em vez de 500.
+(nenhuma — o capability ainda não existe em `openspec/specs/`)
 
 ## Impact
 
