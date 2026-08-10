@@ -1228,7 +1228,7 @@ async def get_agent(config: RunnableConfig) -> Pregel:
                 refresh_github_proxy_before_model,
                 check_message_queue_before_model,
                 SlackAssistantStatusMiddleware(),
-                TimeoutWrapupMiddleware(),
+                TimeoutWrapupMiddleware(is_jira_run=(source == "jira")),
                 notify_step_limit_reached,
                 notify_jira_on_unparked_termination,
                 *fallback_middleware,
