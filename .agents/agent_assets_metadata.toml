@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "6szPTWnGgLaLGmA1YeUJX"
+uri = "file://docs/RELATORIO_FLUXO_ATUAL_JIRA.md"
+type = "text"
+title = "Relatório do fluxo atual do Jira"
+description = "Diagnóstico do shadow mode e descrição completa do fluxo Open SWE/Jira, incluindo o caso SSAI-88."
