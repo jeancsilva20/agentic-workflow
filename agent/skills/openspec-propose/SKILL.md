@@ -109,7 +109,12 @@ Sections:
 
 Tasks should be small enough to finish in one self-review cycle and individually verifiable — you should be able to tell when a task is actually done, not just attempted.
 
-## 7. Confirm before moving on
+## 7. Log the lifecycle event
+
+Call `log_openspec_event("proposal_generated", detail=<change-name>, issue_key=<KEY>)` once every
+artifact is on disk, so the console's execution log records that this run produced its spec.
+
+## 8. Confirm before moving on
 
 Re-read each file you wrote once, checking: every capability named in the proposal has a spec file; every spec requirement traces to card or code; every open product decision lives in `design.md`, not silently resolved; every task is a real checkbox. Then proceed to the spec self-review loop (PASSO 4) — this skill only authors the artifacts, it does not review them.
 

@@ -25,6 +25,7 @@ _TOOL_MODULES = {
     "linear_update_issue": ".linear_update_issue",
     "list_findings": ".list_findings",
     "list_review_findings": ".list_review_findings",
+    "log_openspec_event": ".log_openspec_event",
     "log_review_cycle": ".log_review_cycle",
     "open_pull_request": ".open_pull_request",
     "openspec_archive": ".openspec_archive",
@@ -75,6 +76,7 @@ __all__ = [
     "linear_update_issue",
     "list_findings",
     "list_review_findings",
+    "log_openspec_event",
     "log_review_cycle",
     "open_pull_request",
     "openspec_archive",
@@ -125,6 +127,7 @@ if TYPE_CHECKING:
     from .linear_update_issue import linear_update_issue
     from .list_findings import list_findings
     from .list_review_findings import list_review_findings
+    from .log_openspec_event import log_openspec_event
     from .log_review_cycle import log_review_cycle
     from .open_pull_request import open_pull_request
     from .openspec_archive import openspec_archive

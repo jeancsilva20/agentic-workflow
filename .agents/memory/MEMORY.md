@@ -1,4 +1,5 @@
 - [Open SWE Jira context](open-swe-context.md) — projeto Open SWE estendido para Jira; ler instruções replit.md e design.md antes de qualquer mudança
 - [Regras do fluxo Jira](jira-flow-rules.md) — quem move cada card, por que o JQL de resume cobre os pós-gate, archive/docs antes do merge, armadilha do shadow mode em teste
 - [Frontend do console](console-frontend-testing.md) — página é template único sem build; teste de DOM carrega o próprio template, e editar o template exige restart do workflow
+- [OpenSpec vendorizado e portado](openspec-vendoring.md) — skills servidas são ports sem CLI, sync pinado nunca sobrescreve o port, gates de SDD vivem em prompt/doc
 - [Config operacional em runtime](console-runtime-config.md) — console escreve arquivo/poller lê no tick, loop asyncio único, um cron só, falha de efeito colateral vira warning

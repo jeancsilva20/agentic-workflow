@@ -1,20 +1,110 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Which upstream OpenSpec revision these instructions came from is recorded in
+# openspec/openspec-version.yaml (written by scripts/sync-openspec-skills.sh).
+# Nothing at runtime fetches OpenSpec — the skills are vendored and ported.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+# Project context — shown to the agent whenever it authors an OpenSpec artifact.
+context: |
+  This agent (Open SWE + Jira + OpenSpec) writes changes for a target repository,
+  not for itself. Unless the Jira card says otherwise, the target is:
+
+    guilhermeallen/sensedia-backend-case  (default branch: master, NOT main)
+
+  Target stack:
+    - Python 3, FastAPI, Uvicorn
+    - SQLAlchemy (ORM) + Alembic (migrations)
+    - Pydantic (request/response schemas and validation)
+    - PostgreSQL
+    - pytest for tests
+
+  Target architecture — a change usually touches these layers in this order:
+    Routers (app/routers/, HTTP surface: paths, status codes, dependency injection)
+      -> Services (app/services/, business rules; the only layer that decides
+         what is valid and which HTTP error a rule violation maps to)
+      -> Repositories (app/repositories/, persistence; SQLAlchemy queries only)
+      -> Schemas (app/schemas/, Pydantic models shared by routers and services)
+    Models (app/models/) are the SQLAlchemy tables. A schema change means an
+    Alembic migration; a spec that changes persisted data must say so.
+
+  Conventions that specs must respect:
+    - A business-rule violation is an HTTPException with a 4xx status, raised in
+      the service layer. A bare exception escaping as a 500 is a defect, not a
+      convention — see the SSAI-88 worked example in the openspec-explore skill.
+    - Validation that belongs to the request shape lives in Pydantic schemas;
+      validation that depends on stored state lives in services.
+    - Branch for every Jira-triggered change: feat/spec-<ISSUE-KEY>-<short-slug>.
+    - Commit messages follow conventional commits.
+
+  Workflow context (why the artifacts matter):
+    Every Jira card produces proposal.md, specs/<capability>/spec.md, design.md
+    (when warranted) and tasks.md BEFORE any implementation. A human approves the
+    spec at the "Em Revisão de Spec" gate, so an artifact is read by a person, not
+    only by a model. Write for that reader. Unresolved product decisions are
+    escalated in design.md, never decided silently.
+
+
+# Per-artifact rules — these reinforce the SDD constraints the gates depend on.
+rules:
+  proposal:
+    - >-
+      Establish WHY before WHAT: one or two sentences on the problem and why now,
+      grounded in the Jira card rather than in the recommendation the card carries.
+    - >-
+      Include a "Capabilities" section listing New and Modified capabilities in
+      kebab-case. Every capability named there MUST get a matching
+      specs/<capability>/spec.md in the same change.
+    - >-
+      Mark anything breaking with **BREAKING** in the "What Changes" list.
+    - >-
+      Include an "Impact" section naming affected code, APIs, dependencies and data.
+    - >-
+      Keep it to one or two pages; implementation detail belongs in design.md.
+
+  specs:
+    - >-
+      Use the delta format with `##` headers: ADDED / MODIFIED / REMOVED / RENAMED
+      Requirements. REMOVED needs a Reason and a Migration; RENAMED needs FROM/TO.
+    - >-
+      For MODIFIED, paste the entire existing requirement block from
+      openspec/specs/<capability>/spec.md and edit it — a partial paste loses
+      detail permanently at archive time.
+    - >-
+      Each requirement is `### Requirement: <name>` written with SHALL/MUST
+      (never should/may), and has at least one scenario.
+    - >-
+      Scenarios use exactly four hashtags — `#### Scenario: <name>` — in WHEN/THEN
+      form. Three hashtags are silently ignored by every parser downstream.
+    - >-
+      Every requirement must trace to the Jira card or to code that was read.
+      Every acceptance criterion on the card must appear as a scenario; if one
+      cannot be expressed as a scenario, say why in design.md instead of dropping it.
+
+  design:
+    - >-
+      Create design.md when the change is cross-cutting, adds a dependency, alters
+      the data model, carries security/performance/migration complexity, or has
+      ambiguity worth settling in writing. A one-file bugfix does not need one.
+    - >-
+      Sections: Context, Goals / Non-Goals, Decisions, Risks / Trade-offs,
+      Open Questions.
+    - >-
+      Decisions state why X over Y and which alternatives were considered.
+    - >-
+      An "Open Questions" section is MANDATORY whenever a product decision is
+      unresolved: list the options with evidence for each, state a recommendation,
+      and stop. The spec-review gate answers it; the agent never does.
+
+  tasks:
+    - >-
+      Every task is a literal checkbox — `- [ ] N.M Task description` — grouped
+      under numbered `##` headings and ordered by dependency. Anything not in
+      checkbox form is invisible to openspec_status and to the review loop.
+    - >-
+      Tasks are small enough to finish in one self-review cycle and individually
+      verifiable: you can tell whether one is done, not merely attempted.
+    - >-
+      Include the tests and the lint/format run as explicit tasks; verification
+      walks this checklist before the code-review gate.
+    - >-
+      Mark a task `- [x]` only when the work is actually on the branch.

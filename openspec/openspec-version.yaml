@@ -1,0 +1,66 @@
+# Provenance of the OpenSpec instructions this agent follows.
+#
+# Written by scripts/sync-openspec-skills.sh — do not hand-edit. Re-run the
+# script with a new --commit to update. Nothing at runtime fetches OpenSpec;
+# this file is the audit trail for which upstream revision guided a run.
+
+source: https://github.com/Fission-AI/OpenSpec
+version: "v1.8.0"
+commit: d57889664cab4f2f061d236ec3ff82a5578701bb
+fetched_at: 2026-08-10T03:39:24Z
+
+# Pristine upstream copies, refreshed by the sync script.
+vendor_dir: openspec/vendor/openspec-skills
+
+skill_files:
+  - name: openspec-apply-change
+    upstream_path: skills/openspec-apply-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-apply-change/SKILL.md
+  - name: openspec-archive-change
+    upstream_path: skills/openspec-archive-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-archive-change/SKILL.md
+  - name: openspec-bulk-archive-change
+    upstream_path: skills/openspec-bulk-archive-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-bulk-archive-change/SKILL.md
+  - name: openspec-continue-change
+    upstream_path: skills/openspec-continue-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-continue-change/SKILL.md
+  - name: openspec-explore
+    upstream_path: skills/openspec-explore/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-explore/SKILL.md
+  - name: openspec-ff-change
+    upstream_path: skills/openspec-ff-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-ff-change/SKILL.md
+  - name: openspec-new-change
+    upstream_path: skills/openspec-new-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-new-change/SKILL.md
+  - name: openspec-onboard
+    upstream_path: skills/openspec-onboard/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-onboard/SKILL.md
+  - name: openspec-propose
+    upstream_path: skills/openspec-propose/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-propose/SKILL.md
+  - name: openspec-sync-specs
+    upstream_path: skills/openspec-sync-specs/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-sync-specs/SKILL.md
+  - name: openspec-update-change
+    upstream_path: skills/openspec-update-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-update-change/SKILL.md
+  - name: openspec-verify-change
+    upstream_path: skills/openspec-verify-change/SKILL.md
+    vendored_to: openspec/vendor/openspec-skills/openspec-verify-change/SKILL.md
+
+# Skills actually served to the agent (agent/skills/, route /openspec-skills/).
+# These are ports, not copies: upstream drives the `openspec` CLI, which does
+# not exist in the sandbox (design.md Decision 4). The sync script never
+# overwrites them — after a sync, diff the vendored file against its port and
+# decide what to carry over by hand.
+ported_skills:
+  - name: openspec-explore
+    ported_from: openspec-explore
+  - name: openspec-propose
+    ported_from: openspec-new-change + openspec-propose
+  - name: openspec-verify
+    ported_from: openspec-verify-change
+  - name: openspec-archive
+    ported_from: openspec-archive-change

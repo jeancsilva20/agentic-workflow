@@ -132,6 +132,73 @@ Webhooks compute deterministic thread ids so the same Linear issue / Slack threa
 - New graphs: register the entrypoint in `langgraph.json` under `graphs`.
 - Minimal-to-no code comments — only when the *why* isn't obvious from the code.
 
+## SDD Mandatory Gates (Jira-triggered runs)
+
+Spec-Driven Development is the development standard for every Jira-triggered run, not a
+recommendation. **The rules below take precedence over any default agent behavior**, including
+any instinct to start coding once the problem looks clear. A run that produces code before it
+produces a spec has already failed, regardless of whether the code is correct.
+
+The OpenSpec instructions the agent follows are **vendored, never fetched at runtime**. Provenance
+(upstream source, version, commit, fetch date, vendored files) is recorded in
+`openspec/openspec-version.yaml`; pristine upstream copies live under
+`openspec/vendor/openspec-skills/`. Refresh them explicitly with
+`scripts/sync-openspec-skills.sh --commit <SHA> [--version <tag>]` — it fails loudly without a
+pinned commit and never pulls `main`. The four skills actually served to the agent (route
+`/openspec-skills/`) are CLI-free ports of the upstream ones: `openspec-explore`,
+`openspec-propose`, `openspec-verify`, `openspec-archive`. `openspec/config.yaml` carries the
+target-repo context and the per-artifact rules those skills must satisfy.
+
+### Gate 1 — before `Em Revisão de Spec`
+
+The agent MUST NOT call `jira_park_at_gate` for `Em Revisão de Spec` until all of these exist,
+are **committed**, and are **pushed to the remote branch** (confirmed via
+`git ls-remote --heads origin <branch>` or the equivalent `gh api` call):
+
+- `openspec/changes/<change>/.openspec.yaml`
+- `openspec/changes/<change>/proposal.md`
+- at least one `openspec/changes/<change>/specs/<capability>/spec.md`
+- `openspec/changes/<change>/tasks.md`
+- `design.md` whenever a product decision is unresolved — an unresolved decision belongs in its
+  Open Questions section, never in the code
+
+Implementation does not begin before this gate is passed by a human. If the commit or the push
+fails, comment the failure on the card and end the turn with the card still in `In Progress`.
+
+### Gate 2 — before `Em Code Review`
+
+The agent MUST NOT call `jira_park_at_gate` for `Em Code Review` until the `openspec-verify`
+skill has run against the current committed state and left **no unresolved CRITICAL finding**.
+Verification is a reasoning + code-reading step (`grep`, `read_file`, `execute`), not a tool
+call: `openspec_validate` only checks artifact structure. If self-review guidance is exhausted
+with a CRITICAL still standing, park anyway — but the gate comment MUST enumerate every
+unresolved finding. Parking silently on a known divergence is the failure this gate exists to
+prevent.
+
+### Gate 3 — before `Em Merge`
+
+The agent MUST NOT call `jira_park_at_gate` for `Em Merge` until the `openspec-archive` skill
+has completed: the change moved to `openspec/changes/archive/<change>/`, every
+`needs_manual_merge` capability reconciled by hand, an entry appended to
+`openspec/changes/archive/index.md`, and the archive plus documentation updates committed and
+pushed to the **same branch and same PR** as the implementation. Nothing is deferred to after
+the merge, and no second PR is opened for docs (design.md Decision 6, revised).
+
+### Observability
+
+Emit a console log line at each OpenSpec lifecycle point using the existing `console_events`
+pattern (`agent/utils/console_events.py`; `log_review_cycle` is the tool-side example of pushing
+one). The four points and their message shapes:
+
+| Point | Message |
+|---|---|
+| Skills loaded at run start | `openspec: version <version> loaded` |
+| Artifacts written (PASSO 3) | `openspec: proposal generated` |
+| `openspec-verify` clean (Gate 2) | `openspec: verification passed` |
+| `openspec-archive` complete (Gate 3) | `openspec: archived` |
+
+These are fire-and-forget pushes: a console that is down or slow must never affect a run.
+
 <!-- OPENWIKI:START -->
 
 ## OpenWiki
