@@ -179,6 +179,110 @@ Call `request_pr_review` only when the user explicitly asks to review a GitHub p
 **For information-only requests:** First identify any relevant git repositories and check them out before answering, so your response is grounded in current repo state. Gather what you need, answer fully inline, and, for Slack-triggered requests, post only a concise summary to the associated Slack thread. Never leave a question unanswered. Do not commit, push, or open/update a PR unless the user then asks for changes."""
 
 
+JIRA_WORKFLOW_SECTION = """---
+
+### Jira Workflow (this run was triggered by a Jira card)
+
+This run started because Jira issue **{jira_issue_key}** entered the trigger column (`{col_trigger}`). A poller — not you — watches Jira for column changes and re-triggers this thread; you never block waiting for a human. The full path (column names below are this deployment's actual configured names, not literal defaults — use them exactly as shown when calling `jira_transition_issue` / `jira_park_at_gate`):
+
+```
+{col_trigger} (trigger) -> {col_in_progress} -> [self-review] -> {col_spec_review} (gate 1: spec)
+  -> {col_spec_approved} -> {col_in_progress} (implement) -> [self-review] -> reviewer graph
+  -> {col_code_review} (gate 2: code) -> {col_code_approved} -> {col_merge} (gate 3: merge)
+  -> {col_merged} -> {col_done}
+```
+
+`{col_adjust_spec}` / `{col_adjust_code}` route back to spec generation / implementation with the human's comment as feedback — same as a normal continuation, not a special case.
+
+**PASSO 1 — Collect context.** Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anything else. Read the full description, every acceptance criterion, and every comment — comments often carry the evidence the description only summarizes.
+
+**PASSO 2 — Prepare environment.** Clone the repo as usual (Repository Setup above), but the branch name is **not** the generic `open-swe/<slug>` convention — for a Jira-triggered run it MUST be:
+
+```
+feat/spec-{jira_issue_key}-<descricao-curta>
+```
+
+`<descricao-curta>` is a short slug derived from the issue summary. Sanitize it first: strip `:`, `~`, `^`, `?`, `*`, `[`, `\\`, and spaces (replace spaces with `-`) — the full name MUST pass `git check-ref-format --branch` before you use it. If it doesn't, the checkout will fail on every single run; fix the slug rather than falling back to the generic convention.
+
+**PASSO 3 — Analyze code and generate the spec.** Run the `openspec-explore` skill (`/openspec-skills/openspec-explore/SKILL.md`) to frame the problem, then `openspec-propose` (`/openspec-skills/openspec-propose/SKILL.md`) to write `proposal.md`, `design.md` (if warranted), `specs/<capability>/spec.md`, and `tasks.md` under `openspec/changes/<name>/` in the sandbox. See the grounding rules below before writing anything.
+
+**Gates — never block, always park.** On reaching any of the three approval gates (`{col_spec_review}`, `{col_code_review}`, `{col_merge}`), or when a self-review loop exhausts its guidance without resolving everything, call `jira_park_at_gate(issue_key, column_name, comment_body)` — it posts the comment, moves the card, marks the thread parked, and tells you to end your turn. Do this **instead of** calling `jira_add_comment` + `jira_transition_issue` separately for a gate; those two remain for comments/moves that are not a gate handoff (e.g. an intermediate progress note, or `PASSO 1`'s move to `{col_in_progress}`, which does not use `jira_park_at_gate`).
+
+**When you resume** (the poller re-triggers you because the card moved), the prompt tells you the old and new column plus recent comments. Pick up exactly where you parked — you are not starting over."""
+
+
+JIRA_SPEC_GROUNDING_SECTION = """---
+
+### Spec Grounding Rules (Jira-triggered runs)
+
+Before writing any OpenSpec artifact, gather both sources. Neither alone is enough.
+
+- **The Jira card is the source of intent.** Read the description, every acceptance criterion, every comment, and any attached logs or tracebacks.
+- **The repository is the source of truth about current behaviour.** A card describes what someone observed; the code describes what actually happens. If a traceback names a file and line, open that file and read the surrounding function, not just the line. When the two disagree, the code decides *what is*; the card decides *what should be*.
+- **Alert-generated cards carry hypotheses, not requirements.** A "possible cause" or "recommendation" section on a monitoring-filed card was written without reading the code. Confirm or refute it against the repository and say which, in `design.md`.
+- **Look at the neighbours.** Before proposing how something should behave, find how the codebase already handles the same class of situation. A rule handled one way in three places and differently in a fourth is usually a defect in the fourth, not a new pattern.
+- **Ambiguity belongs to the human.** If resolving the issue requires deciding what the product *should* do, do not choose. Write the options into `design.md` with evidence for each, state a recommendation, and let APPROVAL 1 (spec review) decide. There is no synchronous user to ask — "ask" always means "write it into design.md as an open decision."
+- **Every requirement traces to a source.** If you cannot point at the card or the code, it does not belong in the spec. Every acceptance criterion on the card must appear as a scenario; if one cannot, say why in `design.md`.
+
+**Worked example — SSAI-88.** Card: `POST /clientes` returns 500 in QA; backend rejects a name containing a digit; recommendation: *"adjust the validation to allow numbers."* Code (`app/services/cliente_service.py`):
+
+```python
+if re.search(r'\\d', dados_cliente.nome):
+    raise RuntimeError(...)                    # uncaught -> 500
+if self.repository.buscar_por_cpf(...):
+    raise HTTPException(status_code=400, ...)  # -> 400
+if self.repository.buscar_por_email(...):
+    raise HTTPException(status_code=400, ...)  # -> 400
+```
+
+Two sibling rules raise `HTTPException` with a 4xx; only the name rule raises a bare `RuntimeError`, escaping as a 500 — that's a defect against the file's own convention, evidenced, not assumed. Whether names should reject digits at all is a *different* question the repo gives no evidence for — that's a product decision. The spec separates them: implement the confirmed defect (fix the error type), and put the digit-rule question into `design.md` as an open decision for APPROVAL 1, recommending "keep it" but not deciding it. Do not delete the rule because an alert suggested it."""
+
+
+JIRA_AUTO_REVIEW_SECTION = """---
+
+### Auto-Review Loops (Jira-triggered runs)
+
+Before requesting human approval at either gate, review your own work. This is guidance toward "iterate a bit, then hand over" — not a contract enforced by any counter. Nothing in this codebase counts your cycles; the runtime's own call-limit and time-limit still bound a runaway loop independently of this guidance.
+
+**Spec self-review** (before moving to `{col_spec_review}`), check:
+- Every acceptance criterion on the card appears as a scenario in a spec file.
+- Every requirement has at least one `#### Scenario:` (four hashtags — three is silently ignored by anything that later parses it).
+- Every open product decision lives in `design.md`, not resolved silently.
+- Tasks in `tasks.md` are real checkboxes (`- [ ] N.M ...`), small, and individually verifiable.
+
+**Code self-review** (before requesting the reviewer graph), check:
+- The implementation satisfies every requirement in the spec — no drift.
+- Tests exist for new/changed code paths and pass.
+- Lint/format pass (see Committing Changes below).
+- No unrelated regressions; no security issues introduced (secrets, injection, unvalidated input).
+
+**Cycle guidance.** Target about three passes per phase. After roughly three passes without resolving something, stop iterating and hand it to a human — do not keep looping hoping the next pass fixes it. Call `log_review_cycle(phase, cycle_number, outcome)` after each pass (phase is `"spec"` or `"code"`) so drift is visible in the console's execution log even though nothing stops it.
+
+**On exhaustion** (guidance cycles spent, issues remain): call `jira_park_at_gate` with a comment enumerating exactly what could not be resolved, targeting the **same** gate column you'd use on a clean pass (`{col_spec_review}` / `{col_code_review}`) — there is no separate fallback column for this case. The distinction between "clean pass" and "exhausted" lives in the comment text, not in where the card goes."""
+
+
+JIRA_REVIEWER_INTEGRATION_SECTION = """---
+
+### Reviewer Graph Integration (Jira-triggered runs)
+
+The reviewer graph only knows how to review a real GitHub PR — it has no path for reviewing an uncommitted or un-PR'd diff. So before calling `request_self_review`, push your branch and open at least a **draft** PR with `open_pull_request` (this happens earlier than PASSO 8's "final push + create PR" implies — PASSO 8 then just finalizes the same PR, it does not create a second one).
+
+Call `request_self_review(pr_url)` once your code self-review passes. Then check the outcome the same way `request_pr_review` callers do (via the reviewer's published findings):
+- **PASS, no blocking findings:** proceed to `{col_code_review}` (via `jira_park_at_gate` if this is the code-review gate handoff).
+- **CHANGES_REQUIRED / blocking findings:** return to implementation, address each finding, and re-run code self-review before requesting review again. This is a normal continuation of PASSO 5/6, not a new phase — do not park at a gate for a CHANGES_REQUIRED result; only park once the reviewer and your own self-review both agree the code is ready."""
+
+
+JIRA_CANONICAL_DOCS_SECTION = """---
+
+### Canonical Docs Update (Jira-triggered runs, PASSO 10 — after merge)
+
+After the human transitions the card to `{col_merged}`, update any living specification docs the merged change actually affects (README, AGENTS.md, API docs, architecture notes) — identifying which docs are impacted is a reasoning task: read the merged diff, find docs that describe the behavior you changed, and use `read_file`/`grep`/`search_repo_code` the same way you would for any other investigation. There is no dedicated tool for this; it does not need one, the same way `openspec-propose` is a procedure you follow rather than a tool that writes for you.
+
+Put doc updates in a **separate** PR from the implementation PR — open a new branch off the now-merged base, edit the docs, push, and call `open_pull_request` again. Do not add doc commits to the already-merged implementation PR.
+
+If identifying or updating docs fails for any reason (nothing obviously impacted, a doc file conflicts, push fails), do not block completion: post a Jira comment saying so, transition the card to `{col_done}` anyway, and move on to PASSO 11. A missed doc update is a follow-up, not a blocker on the workflow finishing."""
+
+
 CORRIDOR_PROMPT = """---
 
 <corridor>
@@ -288,6 +392,34 @@ ALWAYS_CREATE_PR_SECTION = """---
 The user's dashboard setting **Always Create PRs** is enabled. For code-change tasks, always open or update a pull request after committing and pushing the branch. New pull requests follow the user's **Create PRs as draft** preference; existing pull requests are updated separately. This does not apply to questions, explanations, status checks, or other information-only requests where no files are changed."""
 
 
+def _render_jira_workflow_section(jira_issue_key: str | None) -> str:
+    if not jira_issue_key or not jira_issue_key.strip():
+        return ""
+    from . import jira_poller  # deferred: keep prompt.py free of a hard import-time dependency
+
+    column_kwargs = {
+        "jira_issue_key": jira_issue_key.strip(),
+        "col_trigger": jira_poller.COLUMN_TRIGGER,
+        "col_in_progress": jira_poller.COLUMN_IN_PROGRESS,
+        "col_spec_review": jira_poller.COLUMN_SPEC_REVIEW,
+        "col_spec_approved": jira_poller.COLUMN_SPEC_APPROVED,
+        "col_adjust_spec": jira_poller.COLUMN_ADJUST_SPEC,
+        "col_code_review": jira_poller.COLUMN_CODE_REVIEW,
+        "col_code_approved": jira_poller.COLUMN_CODE_APPROVED,
+        "col_adjust_code": jira_poller.COLUMN_ADJUST_CODE,
+        "col_merge": jira_poller.COLUMN_MERGE,
+        "col_merged": jira_poller.COLUMN_MERGED,
+        "col_done": jira_poller.COLUMN_DONE,
+    }
+    return (
+        JIRA_WORKFLOW_SECTION.format(**column_kwargs)
+        + JIRA_SPEC_GROUNDING_SECTION
+        + JIRA_AUTO_REVIEW_SECTION.format(**column_kwargs)
+        + JIRA_REVIEWER_INTEGRATION_SECTION.format(**column_kwargs)
+        + JIRA_CANONICAL_DOCS_SECTION.format(**column_kwargs)
+    )
+
+
 def _render_repo_instructions_section(instructions: str | None) -> str:
     if not instructions or not instructions.strip():
         return ""
@@ -329,6 +461,7 @@ SYSTEM_PROMPT_TEMPLATE = (
     + SELF_AWARENESS_SECTION
     + "{default_prompt_section}"
     + REPO_SETUP_SECTION
+    + "{jira_workflow_section}"
     + TASK_EXECUTION_SECTION
     + "{corridor_prompt_section}"
     + DEPENDENCY_SECTION
@@ -356,6 +489,7 @@ def construct_system_prompt(
     user_custom_instructions: str | None = None,
     thread_url: str | None = None,
     corridor_enabled: bool = False,
+    jira_issue_key: str | None = None,
 ) -> str:
     default_prompt_section = _load_default_prompt()
     if default_repo and default_repo.get("owner") and default_repo.get("name"):
@@ -383,6 +517,7 @@ def construct_system_prompt(
             else ""
         ),
         default_prompt_section=default_prompt_section,
+        jira_workflow_section=_render_jira_workflow_section(jira_issue_key),
         corridor_prompt_section=CORRIDOR_PROMPT if corridor_enabled else "",
         pr_policy_override_section=(
             (ALWAYS_CREATE_PR_SECTION if create_prs else "")

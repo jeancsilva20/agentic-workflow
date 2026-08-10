@@ -13,9 +13,11 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langgraph.config import get_config
 from langgraph.runtime import Runtime
 
+from ..utils.adf import markdown_to_jira_comment_body
 from ..utils.github_app import get_github_app_installation_token
 from ..utils.github_comments import post_github_comment
 from ..utils.github_token import get_github_token
+from ..utils.jira import add_comment
 from ..utils.linear import comment_on_linear_issue
 from ..utils.slack import post_slack_thread_reply
 from ..utils.user_messages import warning
@@ -150,6 +152,11 @@ def _get_linear_issue_id(configurable: Mapping[str, Any]) -> str | None:
     return issue_id if isinstance(issue_id, str) and issue_id else None
 
 
+def _get_jira_issue_key(configurable: Mapping[str, Any]) -> str | None:
+    issue_key = configurable.get("jira_issue_key")
+    return issue_key if isinstance(issue_key, str) and issue_key else None
+
+
 def _coerce_issue_number(value: object) -> int | None:
     if isinstance(value, int):
         return value
@@ -221,6 +228,12 @@ async def post_sandbox_unreachable_notification(
     if linear_issue_id is not None:
         await comment_on_linear_issue(linear_issue_id, message)
         logger.info("Sent sandbox circuit breaker notification to Linear issue %s", linear_issue_id)
+        return
+
+    jira_issue_key = _get_jira_issue_key(configurable)
+    if jira_issue_key is not None:
+        await add_comment(jira_issue_key, markdown_to_jira_comment_body(message))
+        logger.info("Sent sandbox circuit breaker notification to Jira issue %s", jira_issue_key)
         return
 
     github_target = _get_github_target(configurable)

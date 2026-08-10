@@ -9,6 +9,12 @@ _TOOL_MODULES = {
     "fetch_review_diff": ".fetch_review_diff",
     "fetch_url": ".fetch_url",
     "http_request": ".http_request",
+    "jira_add_comment": ".jira_add_comment",
+    "jira_get_comments": ".jira_get_comments",
+    "jira_get_issue": ".jira_get_issue",
+    "jira_park_at_gate": ".jira_park_at_gate",
+    "jira_search_issues": ".jira_search_issues",
+    "jira_transition_issue": ".jira_transition_issue",
     "linear_comment": ".linear_comment",
     "linear_create_issue": ".linear_create_issue",
     "linear_delete_issue": ".linear_delete_issue",
@@ -19,12 +25,17 @@ _TOOL_MODULES = {
     "linear_update_issue": ".linear_update_issue",
     "list_findings": ".list_findings",
     "list_review_findings": ".list_review_findings",
+    "log_review_cycle": ".log_review_cycle",
     "open_pull_request": ".open_pull_request",
+    "openspec_archive": ".openspec_archive",
+    "openspec_status": ".openspec_status",
+    "openspec_validate": ".openspec_validate",
     "publish_review": ".publish_review",
     "read_repo_file": ".read_repo_file",
     "recreate_sandbox": ".recreate_sandbox",
     "report_platform_issue": ".report_platform_issue",
     "request_pr_review": ".request_pr_review",
+    "request_self_review": ".request_self_review",
     "reply_to_finding_thread": ".reply_to_finding_thread",
     "resolve_finding_thread": ".resolve_finding_thread",
     "save_plan": ".save_plan",
@@ -48,6 +59,12 @@ __all__ = [
     "fetch_review_diff",
     "fetch_url",
     "http_request",
+    "jira_add_comment",
+    "jira_get_comments",
+    "jira_get_issue",
+    "jira_park_at_gate",
+    "jira_search_issues",
+    "jira_transition_issue",
     "linear_comment",
     "linear_create_issue",
     "linear_delete_issue",
@@ -58,12 +75,17 @@ __all__ = [
     "linear_update_issue",
     "list_findings",
     "list_review_findings",
+    "log_review_cycle",
     "open_pull_request",
+    "openspec_archive",
+    "openspec_status",
+    "openspec_validate",
     "publish_review",
     "read_repo_file",
     "recreate_sandbox",
     "report_platform_issue",
     "request_pr_review",
+    "request_self_review",
     "reply_to_finding_thread",
     "resolve_finding_thread",
     "save_plan",
@@ -87,6 +109,12 @@ if TYPE_CHECKING:
     from .fetch_review_diff import fetch_review_diff
     from .fetch_url import fetch_url
     from .http_request import http_request
+    from .jira_add_comment import jira_add_comment
+    from .jira_get_comments import jira_get_comments
+    from .jira_get_issue import jira_get_issue
+    from .jira_park_at_gate import jira_park_at_gate
+    from .jira_search_issues import jira_search_issues
+    from .jira_transition_issue import jira_transition_issue
     from .linear_comment import linear_comment
     from .linear_create_issue import linear_create_issue
     from .linear_delete_issue import linear_delete_issue
@@ -97,13 +125,18 @@ if TYPE_CHECKING:
     from .linear_update_issue import linear_update_issue
     from .list_findings import list_findings
     from .list_review_findings import list_review_findings
+    from .log_review_cycle import log_review_cycle
     from .open_pull_request import open_pull_request
+    from .openspec_archive import openspec_archive
+    from .openspec_status import openspec_status
+    from .openspec_validate import openspec_validate
     from .publish_review import publish_review
     from .read_repo_file import read_repo_file
     from .recreate_sandbox import recreate_sandbox
     from .reply_to_finding_thread import reply_to_finding_thread
     from .report_platform_issue import report_platform_issue
     from .request_pr_review import request_pr_review
+    from .request_self_review import request_self_review
     from .resolve_finding_thread import resolve_finding_thread
     from .save_plan import save_plan
     from .save_user_instructions import save_user_instructions

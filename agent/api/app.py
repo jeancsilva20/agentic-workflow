@@ -1,5 +1,7 @@
 """FastAPI application composition."""
 
+import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,17 +17,26 @@ from ..webhooks.linear_routes import router as linear_webhook_router
 from ..webhooks.slack_routes import router as slack_webhook_router
 from .health import router as health_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    from ..jira_poller import ensure_jira_poller_cron_with_retry
     from ..utils.model import close_cached_models, validate_local_dev_llm_config
     from ..utils.sandbox import validate_sandbox_startup_config
 
     validate_sandbox_startup_config()
     validate_local_dev_llm_config()
+
+    # Registration calls back into this same server's API, which isn't
+    # accepting connections yet during the `startup` phase — run it as a
+    # background task with its own backoff instead of awaiting it here.
+    cron_task = asyncio.create_task(ensure_jira_poller_cron_with_retry())
     try:
         yield
     finally:
+        cron_task.cancel()
         await close_cached_models()
 
 

@@ -9,6 +9,7 @@ _MIDDLEWARE_MODULES = {
     "ExcludeToolsMiddleware": ".exclude_tools",
     "ModelCallTimeoutMiddleware": ".model_call_timeout",
     "ModelFallbackMiddleware": ".model_fallback",
+    "notify_jira_on_unparked_termination": ".notify_jira_unparked",
     "notify_step_limit_reached": ".notify_step_limit",
     "PlanModeMiddleware": ".plan_mode",
     "PrepareRunState": ".prepare_run",
@@ -51,6 +52,7 @@ __all__ = [
     "SlackAssistantStatusMiddleware",
     "check_message_queue_before_model",
     "ensure_no_empty_msg",
+    "notify_jira_on_unparked_termination",
     "notify_step_limit_reached",
     "refresh_github_proxy_before_model",
     "settle_review_check_on_exit",
@@ -65,6 +67,7 @@ if TYPE_CHECKING:
     from .exclude_tools import ExcludeToolsMiddleware
     from .model_call_timeout import ModelCallTimeoutMiddleware
     from .model_fallback import ModelFallbackMiddleware
+    from .notify_jira_unparked import notify_jira_on_unparked_termination
     from .notify_step_limit import notify_step_limit_reached
     from .plan_mode import PlanModeMiddleware
     from .pr_creation_guard import PullRequestCreationGuardMiddleware

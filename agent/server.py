@@ -13,6 +13,7 @@ import os
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
+from importlib import resources
 from typing import Any, Literal, cast
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ warnings.filterwarnings("ignore", message=".*Pydantic V1.*", category=UserWarnin
 from deepagents import create_deep_agent
 from deepagents.backends import LangSmithSandbox
 from deepagents.backends.composite import CompositeBackend
+from deepagents.backends.filesystem import FilesystemBackend
 from deepagents.backends.protocol import BackendProtocol, SandboxBackendProtocol
 from deepagents.backends.store import StoreBackend
 from deepagents.middleware.subagents import GENERAL_PURPOSE_SUBAGENT, SubAgent
@@ -88,6 +90,7 @@ from .middleware import (
     TimeoutWrapupMiddleware,
     ToolErrorMiddleware,
     check_message_queue_before_model,
+    notify_jira_on_unparked_termination,
     notify_step_limit_reached,
     refresh_github_proxy_before_model,
     task_on_failure,
@@ -111,6 +114,12 @@ from .tools import (
     enter_plan_mode,
     fetch_url,
     http_request,
+    jira_add_comment,
+    jira_get_comments,
+    jira_get_issue,
+    jira_park_at_gate,
+    jira_search_issues,
+    jira_transition_issue,
     linear_comment,
     linear_create_issue,
     linear_delete_issue,
@@ -119,10 +128,15 @@ from .tools import (
     linear_list_teams,
     linear_search_issues,
     linear_update_issue,
+    log_review_cycle,
     open_pull_request,
+    openspec_archive,
+    openspec_status,
+    openspec_validate,
     recreate_sandbox,
     report_platform_issue,
     request_pr_review,
+    request_self_review,
     save_plan,
     save_user_instructions,
     save_user_skill,
@@ -172,6 +186,10 @@ client = get_client()
 
 DEFAULT_TOOL_LOADER_TIMEOUT_SECONDS = 5.0
 USER_SKILLS_ROUTE = "/skills/"
+# Repo-shipped skills (openspec-explore, openspec-propose) served read-only
+# from the package's own agent/skills/ directory — always on, unlike the
+# per-user route below which only applies when profile_login is set.
+STATIC_SKILLS_ROUTE = "/openspec-skills/"
 DEEP_AGENT_TOOL_NAMES = {
     "delete",
     "edit_file",
@@ -817,6 +835,7 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
         draft_prs: bool,
         plan_mode: bool,
         corridor_enabled: bool,
+        jira_issue_key: str | None = None,
     ) -> None:
         self._thread_id = thread_id
         self._config = config
@@ -831,6 +850,7 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
         self._draft_prs = draft_prs
         self._plan_mode = plan_mode
         self._corridor_enabled = corridor_enabled
+        self._jira_issue_key = jira_issue_key
 
     def _prepare_config_fingerprint(self) -> Any:
         configurable = (self._config or {}).get("configurable") or {}
@@ -949,6 +969,7 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
                 user_custom_instructions=user_custom_instructions,
                 thread_url=dashboard_thread_url(self._thread_id),
                 corridor_enabled=self._corridor_enabled,
+                jira_issue_key=self._jira_issue_key,
             ),
         }
 
@@ -980,6 +1001,8 @@ async def get_agent(config: RunnableConfig) -> Pregel:
     linear_issue = as_json_object(configurable.get("linear_issue"))
     linear_project_id = linear_issue.get("linear_project_id", "")
     linear_issue_number = linear_issue.get("linear_issue_number", "")
+    jira_issue_key_value = configurable.get("jira_issue_key")
+    jira_issue_key = jira_issue_key_value if isinstance(jira_issue_key_value, str) else None
 
     async def reconnect_backend(
         _thread_id: str = thread_id,
@@ -1132,6 +1155,12 @@ async def get_agent(config: RunnableConfig) -> Pregel:
         save_user_instructions,
         save_user_skill,
         delete_user_skill,
+        jira_add_comment,
+        jira_get_comments,
+        jira_get_issue,
+        jira_park_at_gate,
+        jira_search_issues,
+        jira_transition_issue,
         linear_comment,
         linear_create_issue,
         linear_delete_issue,
@@ -1140,8 +1169,13 @@ async def get_agent(config: RunnableConfig) -> Pregel:
         linear_list_teams,
         linear_search_issues,
         linear_update_issue,
+        log_review_cycle,
         open_pull_request,
+        openspec_archive,
+        openspec_status,
+        openspec_validate,
         request_pr_review,
+        request_self_review,
         recreate_sandbox,
         report_platform_issue,
         schedule_thread_wakeup,
@@ -1164,20 +1198,17 @@ async def get_agent(config: RunnableConfig) -> Pregel:
         )
 
     logger.info("Returning agent with sandbox for thread %s", thread_id)
-    agent_backend: BackendProtocol = backend
-    skill_sources: list[str] | None = None
+    static_skills_backend = ReadOnlyBackend(
+        FilesystemBackend(root_dir=str(resources.files("agent.skills")), virtual_mode=True)
+    )
+    skill_routes: dict[str, Any] = {STATIC_SKILLS_ROUTE: static_skills_backend}
+    skill_sources: list[str] = [STATIC_SKILLS_ROUTE]
     if profile_login:
-        agent_backend = CompositeBackend(
-            default=backend,
-            routes={
-                USER_SKILLS_ROUTE: ReadOnlyBackend(
-                    StoreBackend(
-                        namespace=lambda _runtime, login=profile_login: (SKILLS_NAMESPACE, login)
-                    )
-                )
-            },
+        skill_routes[USER_SKILLS_ROUTE] = ReadOnlyBackend(
+            StoreBackend(namespace=lambda _runtime, login=profile_login: (SKILLS_NAMESPACE, login))
         )
-        skill_sources = [USER_SKILLS_ROUTE]
+        skill_sources.append(USER_SKILLS_ROUTE)
+    agent_backend: BackendProtocol = CompositeBackend(default=backend, routes=skill_routes)
     main_model = _make_model_or_defer(model_id, use_gateway=use_gateway, **model_kwargs)
     subagent_model = _make_model_or_defer(
         subagent_model_id,
@@ -1211,6 +1242,7 @@ async def get_agent(config: RunnableConfig) -> Pregel:
                     draft_prs=draft_prs,
                     plan_mode=plan_mode,
                     corridor_enabled=bool(corridor_tools),
+                    jira_issue_key=jira_issue_key,
                 ),
                 *([dynamic_tool_middleware] if dynamic_tool_middleware else []),
                 SanitizeToolInputsMiddleware(),
@@ -1231,6 +1263,7 @@ async def get_agent(config: RunnableConfig) -> Pregel:
                 SlackAssistantStatusMiddleware(),
                 TimeoutWrapupMiddleware(),
                 notify_step_limit_reached,
+                notify_jira_on_unparked_termination,
                 *fallback_middleware,
                 *plan_mode_middleware,
                 SanitizeFireworksMessagesMiddleware(),

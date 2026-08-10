@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jira Agent Console</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e6e8ec;
+    --muted: #8b93a3;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --idle: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot.working { background: var(--ok); }
+  .dot.waiting { background: var(--idle); }
+  .dot.idle { background: var(--muted); }
+  .dot.degraded_poller, .dot.no_tick_ever { background: var(--bad); }
+  .status-text { font-weight: 600; text-transform: capitalize; }
+  .status-detail { color: var(--muted); font-size: 13px; }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .metric .value { font-size: 26px; font-weight: 700; }
+  .metric .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .metric.dead .value { color: var(--bad); }
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow: auto;
+    max-height: 360px;
+  }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge.working { background: rgba(63,185,80,.15); color: var(--ok); }
+  .badge.waiting { background: rgba(88,166,255,.15); color: var(--idle); }
+  .badge.dead { background: rgba(248,81,73,.15); color: var(--bad); }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+  #log div { padding: 2px 0; border-bottom: 1px solid var(--border); }
+  #log .ts { color: var(--muted); margin-right: 8px; }
+</style>
+</head>
+<body>
+  <h1>Jira Agent Console</h1>
+
+  <div class="status-bar">
+    <div id="status-dot" class="dot idle"></div>
+    <div>
+      <div id="status-text" class="status-text">loading...</div>
+      <div id="status-detail" class="status-detail"></div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div id="m-working" class="value">0</div><div class="label">Working</div></div>
+    <div class="metric"><div id="m-waiting" class="value">0</div><div class="label">Waiting on human</div></div>
+    <div class="metric"><div id="m-queued" class="value">0</div><div class="label">Queued</div></div>
+    <div class="metric dead"><div id="m-dead" class="value">0</div><div class="label">Dead</div></div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Queue</h2>
+      <table>
+        <thead><tr><th>Issue</th><th>Waiting</th></tr></thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+      <div id="queue-empty" class="empty" style="display:none">Nothing waiting for a thread.</div>
+    </div>
+    <div class="panel">
+      <h2>Runs</h2>
+      <table>
+        <thead><tr><th>Issue</th><th>Status</th><th>Column</th><th>Parked for</th></tr></thead>
+        <tbody id="runs-body"></tbody>
+      </table>
+      <div id="runs-empty" class="empty" style="display:none">No active or recent runs.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Execution log</h2>
+    <div id="log"></div>
+  </div>
+
+<script>
+function fmtSeconds(s) {
+  if (s === null || s === undefined) return "-";
+  s = Math.round(s);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m " + (s % 60) + "s";
+  return Math.floor(s / 3600) + "h " + Math.floor((s % 3600) / 60) + "m";
+}
+
+function escapeHtml(s) {
+  const div = document.createElement("div");
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+async function refresh() {
+  let data;
+  try {
+    const res = await fetch("/api/state");
+    data = await res.json();
+  } catch (e) {
+    document.getElementById("status-text").textContent = "console unreachable";
+    document.getElementById("status-dot").className = "dot degraded_poller";
+    return;
+  }
+
+  const dot = document.getElementById("status-dot");
+  dot.className = "dot " + data.overall_status;
+  document.getElementById("status-text").textContent = data.overall_status.replace(/_/g, " ");
+
+  const p = data.poller;
+  document.getElementById("status-detail").textContent = p.last_tick_at
+    ? "last tick " + fmtSeconds(p.seconds_since_tick) + " ago" + (p.healthy ? "" : " — POLLER DEGRADED")
+    : "no tick received yet";
+
+  document.getElementById("m-working").textContent = data.metrics.working;
+  document.getElementById("m-waiting").textContent = data.metrics.waiting;
+  document.getElementById("m-queued").textContent = data.metrics.queued;
+  document.getElementById("m-dead").textContent = data.metrics.dead;
+
+  const queueBody = document.getElementById("queue-body");
+  queueBody.innerHTML = data.queue.map(q =>
+    `<tr><td>${escapeHtml(q.issue_key)}</td><td>${fmtSeconds(q.waiting_seconds)}</td></tr>`
+  ).join("");
+  document.getElementById("queue-empty").style.display = data.queue.length ? "none" : "block";
+
+  const runsBody = document.getElementById("runs-body");
+  runsBody.innerHTML = data.runs.map(r =>
+    `<tr><td>${escapeHtml(r.issue_key)}</td>` +
+    `<td><span class="badge ${r.status}">${r.status}</span></td>` +
+    `<td>${escapeHtml(r.column || "-")}</td>` +
+    `<td>${r.status === "waiting" ? fmtSeconds(r.time_parked_seconds) : "-"}</td></tr>`
+  ).join("");
+  document.getElementById("runs-empty").style.display = data.runs.length ? "none" : "block";
+
+  const logDiv = document.getElementById("log");
+  logDiv.innerHTML = data.log.slice().reverse().map(entry => {
+    const ts = new Date(entry.at * 1000).toLocaleTimeString();
+    return `<div><span class="ts">${ts}</span>${escapeHtml(entry.message)}</div>`;
+  }).join("");
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

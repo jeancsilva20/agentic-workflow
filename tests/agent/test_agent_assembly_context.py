@@ -92,16 +92,68 @@ async def test_agent_is_built_with_a_backend_for_eviction_and_summarization() ->
 @pytest.mark.asyncio
 async def test_agent_wires_user_skills_into_main_and_general_purpose_agents() -> None:
     captured = await _capture_create_deep_agent_kwargs()
-    assert captured["skills"] == ["/skills/"]
+    # /openspec-skills/ is the always-on route serving the repo-shipped
+    # openspec-explore/openspec-propose skills (agent/skills/); /skills/ is
+    # the per-user store-backed route, present here because profile_login
+    # resolves from the config's github_login regardless of load_profile.
+    assert captured["skills"] == ["/openspec-skills/", "/skills/"]
     backend = captured["backend"]
     assert isinstance(backend, CompositeBackend)
     assert isinstance(backend.routes["/skills/"], ReadOnlyBackend)
+    assert isinstance(backend.routes["/openspec-skills/"], ReadOnlyBackend)
     with pytest.raises(NotImplementedError):
         backend.write("/skills/poison/SKILL.md", "malicious")
+    with pytest.raises(NotImplementedError):
+        backend.write("/openspec-skills/openspec-explore/SKILL.md", "malicious")
     subagents = captured["subagents"]
     assert isinstance(subagents, list)
     gp = next(s for s in subagents if s["name"] == "general-purpose")
-    assert gp["skills"] == ["/skills/"]
+    assert gp["skills"] == ["/openspec-skills/", "/skills/"]
+
+
+@pytest.mark.asyncio
+async def test_agent_always_wires_static_openspec_skills_even_without_profile() -> None:
+    """The openspec-explore/openspec-propose route must not depend on profile_login."""
+    captured: dict[str, object] = {}
+
+    def fake_create_deep_agent(**kwargs: object) -> _DummyAgent:
+        captured.update(kwargs)
+        return _DummyAgent()
+
+    config = _base_config()
+    config["configurable"].pop("github_login")
+
+    with (
+        patch(
+            "agent.server.resolve_github_token",
+            new_callable=AsyncMock,
+            return_value=("ghp", None),
+        ),
+        patch("agent.server.resolve_triggering_user_identity", return_value=None),
+        patch(
+            "agent.server.ensure_sandbox_for_thread",
+            new_callable=AsyncMock,
+            return_value=MagicMock(),
+        ),
+        patch(
+            "agent.server.aresolve_sandbox_work_dir",
+            new_callable=AsyncMock,
+            return_value="/workspace",
+        ),
+        patch(
+            "agent.server.get_team_default_model_pair",
+            new_callable=AsyncMock,
+            return_value=(("openai:gpt-5.6-sol", "medium"), ("openai:gpt-5.6-sol", "low")),
+        ),
+        patch("agent.server.load_profile", new_callable=AsyncMock, return_value=None),
+        patch("agent.server.fallback_model_id_for", return_value=None),
+        patch("agent.server.make_model", side_effect=[MagicMock(), MagicMock()]),
+        patch("agent.server.construct_system_prompt", return_value="prompt"),
+        patch("agent.server.create_deep_agent", side_effect=fake_create_deep_agent),
+    ):
+        await get_agent(config)
+
+    assert captured["skills"] == ["/openspec-skills/"]
 
 
 @pytest.mark.asyncio
