@@ -1,0 +1,1 @@
+- [Open SWE Jira context](open-swe-context.md) — projeto Open SWE estendido para Jira; ler instruções replit.md e design.md antes de qualquer mudança
