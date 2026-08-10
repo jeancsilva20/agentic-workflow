@@ -1,7 +1,10 @@
 import asyncio
 from typing import cast
 
+import pytest
+
 import agent.integrations.local as local_mod
+from agent.utils.sandbox_root import SandboxRootInsideProjectError, project_root
 
 
 class _StubLocalShellBackend:
@@ -26,9 +29,7 @@ def test_create_local_sandbox_creates_missing_root_dir(monkeypatch, tmp_path):
     assert stub.inherit_env is True
 
 
-def test_create_local_sandbox_does_not_read_cwd_when_root_is_configured(
-    monkeypatch, tmp_path
-):
+def test_create_local_sandbox_does_not_read_cwd_when_root_is_configured(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCAL_SANDBOX_ROOT_DIR", str(tmp_path))
     monkeypatch.setattr(local_mod, "LocalShellBackend", _StubLocalShellBackend)
 
@@ -43,7 +44,8 @@ def test_create_local_sandbox_does_not_read_cwd_when_root_is_configured(
     assert stub.root_dir == str(tmp_path)
 
 
-def test_create_local_sandbox_defaults_to_cwd(monkeypatch, tmp_path):
+def test_create_local_sandbox_default_root_is_outside_this_project(monkeypatch, tmp_path):
+    """Unconfigured, the sandbox roots itself outside our checkout -- never at cwd."""
     monkeypatch.delenv("LOCAL_SANDBOX_ROOT_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(local_mod, "LocalShellBackend", _StubLocalShellBackend)
@@ -51,8 +53,21 @@ def test_create_local_sandbox_defaults_to_cwd(monkeypatch, tmp_path):
     backend = asyncio.run(local_mod.create_local_sandbox())
 
     stub = cast(_StubLocalShellBackend, backend)
-    assert stub.root_dir == str(tmp_path)
+    assert stub.root_dir != str(tmp_path)
+    assert not stub.root_dir.startswith(project_root())
     assert stub.virtual_mode is True
+
+
+def test_create_local_sandbox_refuses_root_inside_this_project(monkeypatch):
+    """A root inside our checkout stops the run instead of contaminating us."""
+    refused = f"{project_root()}/sensedia-backend-case"
+    monkeypatch.setenv("LOCAL_SANDBOX_ROOT_DIR", refused)
+    monkeypatch.setattr(local_mod, "LocalShellBackend", _StubLocalShellBackend)
+
+    with pytest.raises(SandboxRootInsideProjectError) as excinfo:
+        asyncio.run(local_mod.create_local_sandbox())
+
+    assert refused in str(excinfo.value)
 
 
 def test_create_local_sandbox_injects_pat_as_gh_token(monkeypatch, tmp_path):
@@ -64,7 +79,8 @@ def test_create_local_sandbox_injects_pat_as_gh_token(monkeypatch, tmp_path):
     backend = asyncio.run(local_mod.create_local_sandbox())
 
     stub = cast(_StubLocalShellBackend, backend)
-    assert stub.env == {"GH_TOKEN": "ghp_test_local_pat"}
+    assert stub.env is not None
+    assert stub.env["GH_TOKEN"] == "ghp_test_local_pat"
 
 
 def test_create_local_sandbox_no_env_when_pat_absent(monkeypatch, tmp_path):

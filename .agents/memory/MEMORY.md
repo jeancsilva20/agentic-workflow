@@ -8,3 +8,4 @@
 - [Telemetria entre os dois processos](console-telemetry-mirror.md) — console espelha as stores do agente por eventos, nunca chama serviço externo; custo desconhecido é null, não 0.0
 - [Base errada de branch parece regressão](branch-base-drift.md) — funcionalidade "sumiu"? checar `git merge-base HEAD main` antes do código; corrigir sobre base velha reimplementa o que já existe
 - [Roteamento de modelo por papel](model-routing.md) — modelo/effort vêm do papel do agente, sem override; effort não suportado é derrubado, não trocado; perfil ainda exibe modelo sem escolher nada
+- [Fronteira sandbox x repo alvo](sandbox-boundary.md) — raiz do sandbox nunca herda o cwd do servidor; clone precisa de `.git` próprio e origin conferido antes de qualquer git da spec

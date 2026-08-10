@@ -65,9 +65,11 @@ Set the `SANDBOX_TYPE` environment variable to switch providers. Each provider h
 | `runloop` | `agent/integrations/runloop.py` | `RUNLOOP_API_KEY`, `SANDBOX_TYPE="runloop"` |
 | `e2b` | `agent/integrations/e2b.py` | `E2B_API_KEY`, `SANDBOX_TYPE="e2b"`, optional `E2B_TEMPLATE` |
 | `modal` | `agent/integrations/modal.py` | Modal credentials, `SANDBOX_TYPE="modal"` |
-| `local` | `agent/integrations/local.py` | None (no isolation — development only), `SANDBOX_TYPE="local"` |
+| `local` | `agent/integrations/local.py` | None (no isolation — development only), `SANDBOX_TYPE="local"`, optional `LOCAL_SANDBOX_ROOT_DIR` |
 
 > **Warning**: `local` runs commands directly on your host with no sandboxing. Only use for local development with human-in-the-loop enabled.
+
+Because `local` has no isolation, its root directory *is* the boundary between Open SWE and the repository it works on. It defaults to `~/open-swe-sandbox` (a temp directory when no usable home exists) and never to the server's current directory — a root inside this checkout would make the agent clone, branch and commit into Open SWE itself instead of the target repo. Set `LOCAL_SANDBOX_ROOT_DIR` to move it; a value inside this checkout is refused at startup rather than used.
 
 For `langsmith`, sandboxes default to the same LangSmith credentials as tracing. To run sandboxes against a **different** LangSmith workspace, set `SANDBOX_LANGSMITH_API_KEY` (falls back to `LANGSMITH_API_KEY` / `LANGSMITH_API_KEY_PROD`) and optionally `SANDBOX_LANGSMITH_ENDPOINT` (falls back to `LANGSMITH_ENDPOINT`). These apply to sandbox create/connect/delete, the GitHub proxy config, and repo snapshot builds — the `DEFAULT_SANDBOX_SNAPSHOT_ID` must exist in whichever workspace these credentials point at.
 

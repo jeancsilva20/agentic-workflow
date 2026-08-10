@@ -3,9 +3,11 @@ from __future__ import annotations
 import shlex
 from typing import cast
 
+import pytest
 from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
 
 from agent.utils.sandbox_paths import aresolve_repo_dir, aresolve_sandbox_work_dir
+from agent.utils.sandbox_root import SandboxRootInsideProjectError, project_root
 
 
 class _FakeProvider:
@@ -116,3 +118,17 @@ async def test_aresolve_repo_dir_resolves_home_dir() -> None:
 
     assert repo_dir == "/home/daytona/open-swe"
     assert backend.commands == ["test -d /home/daytona && test -w /home/daytona"]
+
+
+async def test_work_dir_inside_this_project_is_refused() -> None:
+    """A work dir in our own checkout stops the run instead of contaminating us."""
+    refused = project_root()
+    backend = _FakeSandboxBackend(
+        provider=_FakeProvider(work_dir=refused),
+        writable_dirs={refused},
+    )
+
+    with pytest.raises(SandboxRootInsideProjectError) as excinfo:
+        await aresolve_sandbox_work_dir(cast(SandboxBackendProtocol, backend))
+
+    assert refused in str(excinfo.value)

@@ -177,6 +177,7 @@ from .utils.sandbox_state import (
     unwrap_sandbox_backend,
 )
 from .utils.static_skills import STATIC_SKILLS_ROUTE, make_static_skills_backend
+from .utils.target_repo import ensure_target_repo_clone
 from .utils.tracing import AGENT_TRACING_PROJECT, traced_graph_factory
 from .utils.turn_checkpoint import merge_checkpoint, record_turn_checkpoint
 
@@ -886,6 +887,26 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
             existing = None
         return merge_checkpoint(existing, turn_key, ref, datetime.now(UTC).isoformat())
 
+    async def _ensure_target_repo_dir(
+        self, sandbox_backend: Any, work_dir: str, repo: dict[str, str] | None
+    ) -> str | None:
+        """Pre-clone and verify the target repo for Jira runs, before any git.
+
+        The spec phase branches, commits and pushes on the card's repository;
+        doing that against a directory that is not a repository of its own
+        silently rewrites whatever repository encloses it. Verifying up front
+        means a misdirected run fails here instead of committing to the wrong
+        place, so a failure is raised rather than swallowed.
+        """
+        if self._source != "jira" or not repo:
+            return None
+        return await ensure_target_repo_clone(
+            sandbox_backend,
+            work_dir=work_dir,
+            owner=repo.get("owner", ""),
+            name=repo.get("name", ""),
+        )
+
     async def _prepare(self, state: PrepareRunState, runtime: Runtime) -> dict[str, Any]:  # noqa: ARG002
         github_token, _expires_at = await resolve_github_token(self._config, self._thread_id)
         configurable = (self._config or {}).get("configurable") or {}
@@ -928,6 +949,9 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
             raise
         del github_token
         work_dir = await aresolve_sandbox_work_dir(sandbox_backend)
+        target_repo_dir = await self._ensure_target_repo_dir(
+            sandbox_backend, work_dir, prompt_default_repo
+        )
         repo_custom_instructions, user_custom_instructions = await asyncio.gather(
             _resolve_repo_custom_instructions(prompt_default_repo),
             _resolve_user_custom_instructions(self._profile_login),
@@ -976,6 +1000,7 @@ class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):
                 thread_url=dashboard_thread_url(self._thread_id),
                 corridor_enabled=self._corridor_enabled,
                 jira_issue_key=self._jira_issue_key,
+                target_repo_dir=target_repo_dir,
             ),
         }
 

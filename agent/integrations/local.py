@@ -11,9 +11,13 @@ async def create_local_sandbox(sandbox_id: str | None = None):
     WARNING: This runs commands directly on the host machine with no sandboxing.
     Only use for local development with human-in-the-loop enabled.
 
-    The root directory defaults to the current working directory and can be
-    overridden via the LOCAL_SANDBOX_ROOT_DIR environment variable. It is
-    created if it does not already exist.
+    The root directory is a dedicated sandbox directory outside this project's
+    checkout, overridable via the LOCAL_SANDBOX_ROOT_DIR environment variable.
+    It is created if it does not already exist. It is never the server
+    process's working directory: that put the target repository's clone inside
+    our own repository, so every git command the agent ran "in the target repo"
+    operated on us. A configured root inside this project is refused with
+    ``SandboxRootInsideProjectError`` rather than silently used.
 
     When ``GITHUB_PAT`` is set in the environment it is injected as ``GH_TOKEN``
     so that git operations inside the sandbox authenticate with the PAT.  Any
@@ -26,15 +30,9 @@ async def create_local_sandbox(sandbox_id: str | None = None):
         LocalShellBackend instance implementing SandboxBackendProtocol.
     """
     from ..utils.github_pat import get_github_pat
+    from ..utils.sandbox_root import resolve_local_sandbox_root
 
-    configured_root_dir = os.getenv("LOCAL_SANDBOX_ROOT_DIR")
-    if configured_root_dir:
-        root_dir = configured_root_dir
-    else:
-        # LangGraph's blockbuster guard rejects synchronous filesystem calls
-        # on the ASGI event loop.  Keep the fallback compatible with the
-        # existing behavior, but resolve it off-loop.
-        root_dir = await asyncio.to_thread(os.getcwd)
+    root_dir = resolve_local_sandbox_root()
     await asyncio.to_thread(os.makedirs, root_dir, exist_ok=True)
 
     extra_env: dict[str, str] | None = None

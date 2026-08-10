@@ -203,7 +203,7 @@ Call `jira_get_issue` and `jira_get_comments` for {jira_issue_key} before anythi
 
 Do not move the card out of `{col_trigger}`. The spec phase runs entirely with the card in `{col_trigger}` — there is no intermediate status. The first status change you make is parking at `{col_spec_review}` via `jira_park_at_gate` at the end of PASSO 3, once the OpenSpec artifacts are committed and the remote branch is confirmed.
 
-**PASSO 2 — Prepare environment.** Clone the repo as usual (Repository Setup above), but the branch name is **not** the generic `open-swe/<slug>` convention — for a Jira-triggered run it MUST be:
+**PASSO 2 — Prepare environment.** {target_repo_setup} The branch name is **not** the generic `open-swe/<slug>` convention — for a Jira-triggered run it MUST be:
 
 ```
 feat/spec-{jira_issue_key}-<descricao-curta>
@@ -211,7 +211,15 @@ feat/spec-{jira_issue_key}-<descricao-curta>
 
 `<descricao-curta>` is a short slug derived from the issue summary. Sanitize it first: strip `:`, `~`, `^`, `?`, `*`, `[`, `\\`, and spaces (replace spaces with `-`) — the full name MUST pass `git check-ref-format --branch` before you use it. If it doesn't, the checkout will fail on every single run; fix the slug rather than falling back to the generic convention.
 
-**PASSO 2.5 — Run the Python Harness Engineer.** On a Python repository, before any exploration or code: read `/openspec-skills/python-harness/SKILL.md` and follow it. It detects the Python version, dependency manager, install/run/test/lint/type-check/migration commands, framework, architecture layers and required environment variables, then emits the **Harness Report** — once, as a fenced block in the thread and saved to `<working_dir>/harness/{jira_issue_key}-harness-report.md` (outside the repo clone, so it never reaches `git status` or the PR). Every later step takes its commands from that report instead of re-detecting them; a run resumed after a gate reads the saved file rather than repeating the whole harness. Do not edit a source file before the report exists. If a safe test command cannot be determined, the skill has you post the question on the card and end the turn (`HARNESS BLOCKED`) — do not guess one.
+**The target repository is the only repository you touch.** The Open SWE project that runs you is the tool, not the subject of the analysis — you never clone it, branch it, commit to it or push it. So every git command of this run names the target repo directory explicitly:
+
+```
+git -C {target_repo_dir} <subcommand>
+```
+
+Use `-C` for branch, add, commit, push, status, log, diff and the remote checks — never rely on the shell's current directory, and never `cd` out of the target repo to run git. Everything you create that is not a spec artifact — harness reports, scratch notes, downloaded logs — goes under `{working_dir}` **outside** the clone, so it never reaches `git status` or the PR. Before your first commit, `git -C {target_repo_dir} status --short` must show only files you intentionally changed in the target repository; if it shows anything belonging to Open SWE itself, stop and report it on the card instead of committing.
+
+**PASSO 2.5 — Run the Python Harness Engineer.** On a Python repository, before any exploration or code: read `/openspec-skills/python-harness/SKILL.md` and follow it. It detects the Python version, dependency manager, install/run/test/lint/type-check/migration commands, framework, architecture layers and required environment variables, then emits the **Harness Report** — once, as a fenced block in the thread and saved to `{working_dir}/harness/{jira_issue_key}-harness-report.md` (outside the repo clone, so it never reaches `git status` or the PR). Every later step takes its commands from that report instead of re-detecting them; a run resumed after a gate reads the saved file rather than repeating the whole harness. Do not edit a source file before the report exists. If a safe test command cannot be determined, the skill has you post the question on the card and end the turn (`HARNESS BLOCKED`) — do not guess one.
 
 **Python skills are loaded per phase, not all at once** (the table is in `AGENTS.md` under "Python Skill Loading"): `python-harness` here in PASSO 2.5; `python-engineering` from PASSO 3 onward; `fastapi-engineering` and `python-testing` while implementing (PASSO 5); `python-database` only when the change touches models, queries or schema; `python-quality` when running the project's gates and again at PASSO 6. Read a skill when you reach its phase, and only once per run.
 
@@ -231,7 +239,7 @@ feat/spec-{jira_issue_key}-<descricao-curta>
 
 When one of those steps fails, do not transition and do not retry it in a loop. Post a Jira comment with `jira_add_comment` naming exactly what failed, leave the card where it is, and end your turn — a stuck card with an explanation is recoverable; a card that advanced on a lie is not.
 
-**Guard before `{col_spec_review}`.** After writing the OpenSpec artifacts, commit them and `git push origin <branch>`, then **confirm the remote branch actually exists** (for example `GH_TOKEN=dummy gh api repos/<owner>/<repo>/branches/<branch> --jq .name`, or `git ls-remote --heads origin <branch>` returning a ref). Only after that confirmation may you call `jira_park_at_gate` for `{col_spec_review}`. If the commit or the push fails, comment the failure on the Jira card and end your turn with the card still in `{col_trigger}`.
+**Guard before `{col_spec_review}`.** After writing the OpenSpec artifacts, commit them and push the branch, then **confirm the remote branch actually exists on the target repository** — `git -C {target_repo_dir} ls-remote --heads origin <branch>` must return a ref (or `GH_TOKEN=dummy gh api repos/<owner>/<repo>/branches/<branch> --jq .name`). Only after that confirmation may you call `jira_park_at_gate` for `{col_spec_review}`. If the commit or the push fails, comment the failure on the Jira card and end your turn with the card still in `{col_trigger}`.
 
 **Branch continuity.** The branch is born during specification and every later phase — implementation, code-review fixes, pre-merge preparation — reuses **that same branch and that same PR**. Never open a second branch or a second PR for the same card.
 
@@ -474,13 +482,31 @@ ALWAYS_CREATE_PR_SECTION = """---
 The user's dashboard setting **Always Create PRs** is enabled. For code-change tasks, always open or update a pull request after committing and pushing the branch. New pull requests follow the user's **Create PRs as draft** preference; existing pull requests are updated separately. This does not apply to questions, explanations, status checks, or other information-only requests where no files are changed."""
 
 
-def _render_jira_workflow_section(jira_issue_key: str | None) -> str:
+def _render_target_repo_setup(target_repo_dir: str | None) -> str:
+    """How PASSO 2 opens, depending on whether the clone was already verified."""
+    if target_repo_dir:
+        return (
+            f"The target repository is already cloned at `{target_repo_dir}` and verified: it is a "
+            "git checkout of its own whose `origin` is this card's repository. Do not clone it "
+            "again, and do not clone it anywhere else."
+        )
+    return "Clone the target repository as usual (Repository Setup above)."
+
+
+def _render_jira_workflow_section(
+    jira_issue_key: str | None,
+    working_dir: str = "/workspace",
+    target_repo_dir: str | None = None,
+) -> str:
     if not jira_issue_key or not jira_issue_key.strip():
         return ""
     from . import jira_poller  # deferred: keep prompt.py free of a hard import-time dependency
 
     column_kwargs = {
         "jira_issue_key": jira_issue_key.strip(),
+        "working_dir": working_dir,
+        "target_repo_dir": target_repo_dir or "<target-repo-dir>",
+        "target_repo_setup": _render_target_repo_setup(target_repo_dir),
         "col_trigger": jira_poller.COLUMN_TRIGGER,
         "col_in_progress": jira_poller.COLUMN_IN_PROGRESS,
         "col_spec_review": jira_poller.COLUMN_SPEC_REVIEW,
@@ -574,6 +600,7 @@ def construct_system_prompt(
     thread_url: str | None = None,
     corridor_enabled: bool = False,
     jira_issue_key: str | None = None,
+    target_repo_dir: str | None = None,
 ) -> str:
     default_prompt_section = _load_default_prompt()
     if default_repo and default_repo.get("owner") and default_repo.get("name"):
@@ -601,7 +628,9 @@ def construct_system_prompt(
             else ""
         ),
         default_prompt_section=default_prompt_section,
-        jira_workflow_section=_render_jira_workflow_section(jira_issue_key),
+        jira_workflow_section=_render_jira_workflow_section(
+            jira_issue_key, working_dir=working_dir, target_repo_dir=target_repo_dir
+        ),
         corridor_prompt_section=CORRIDOR_PROMPT if corridor_enabled else "",
         pr_policy_override_section=(
             (ALWAYS_CREATE_PR_SECTION if create_prs else "")

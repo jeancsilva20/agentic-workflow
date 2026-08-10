@@ -78,5 +78,7 @@ def test_jira_prompt_runs_the_harness_between_branch_creation_and_the_spec() -> 
         "**PASSO 3 — Analyze code and generate the spec.**"
     )
     assert "/openspec-skills/python-harness/SKILL.md" in prompt
-    assert "/workspace/harness/SSAI-42-harness-report.md" not in prompt
-    assert "<working_dir>/harness/SSAI-42-harness-report.md" in prompt
+    # The report path is resolved, not a literal placeholder: it has to name a
+    # real directory outside the clone for the agent to write it there.
+    assert "<working_dir>/harness/SSAI-42-harness-report.md" not in prompt
+    assert "/workspace/harness/SSAI-42-harness-report.md" in prompt

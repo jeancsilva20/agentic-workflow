@@ -61,7 +61,7 @@ def test_prompt_guards_spec_review_move_on_a_pushed_remote_branch() -> None:
     prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
 
     assert "Guard before `Em Revisão de Spec`" in prompt
-    assert "git ls-remote --heads origin" in prompt
+    assert "ls-remote --heads origin" in prompt
     assert (
         "Do not move to `Em Revisão de Spec` unless the OpenSpec artifacts are committed" in prompt
     )
@@ -200,3 +200,45 @@ def test_prompt_reflects_column_name_env_overrides(monkeypatch: pytest.MonkeyPat
     assert "Foi Pro Ar" in prompt
     assert "Em Revisão de Spec" not in prompt
     assert "Mergeado" not in prompt
+
+
+def test_prompt_names_the_verified_target_repo_clone() -> None:
+    """PASSO 2 must not tell the agent to clone a repo that is already prepped."""
+    prompt = construct_system_prompt(
+        working_dir="/sandbox",
+        jira_issue_key="SSAI-42",
+        target_repo_dir="/sandbox/sensedia-backend-case",
+    )
+
+    assert "already cloned at `/sandbox/sensedia-backend-case`" in prompt
+    assert "Clone the target repository as usual" not in prompt
+
+
+def test_prompt_binds_git_to_the_target_repo_dir() -> None:
+    """Git must never depend on the shell's current directory."""
+    prompt = construct_system_prompt(
+        working_dir="/sandbox",
+        jira_issue_key="SSAI-42",
+        target_repo_dir="/sandbox/sensedia-backend-case",
+    )
+
+    assert "git -C /sandbox/sensedia-backend-case" in prompt
+    assert "The target repository is the only repository you touch." in prompt
+    assert "git -C /sandbox/sensedia-backend-case ls-remote --heads origin" in prompt
+
+
+def test_prompt_keeps_harness_output_out_of_the_clone() -> None:
+    prompt = construct_system_prompt(
+        working_dir="/sandbox",
+        jira_issue_key="SSAI-42",
+        target_repo_dir="/sandbox/sensedia-backend-case",
+    )
+
+    assert "/sandbox/harness/SSAI-42-harness-report.md" in prompt
+
+
+def test_prompt_falls_back_to_cloning_when_no_repo_was_prepped() -> None:
+    prompt = construct_system_prompt(working_dir="/sandbox", jira_issue_key="SSAI-42")
+
+    assert "Clone the target repository as usual" in prompt
+    assert "git -C <target-repo-dir>" in prompt

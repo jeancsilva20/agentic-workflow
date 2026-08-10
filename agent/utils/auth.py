@@ -484,13 +484,10 @@ async def resolve_github_token(
     if source == "jira":
         pat = get_github_pat()
         if pat:
-            logger.info(
-                "Using GITHUB_PAT for Jira-triggered run on thread %s", thread_id
-            )
+            logger.info("Using GITHUB_PAT for Jira-triggered run on thread %s", thread_id)
             return pat, None
         logger.warning(
-            "GITHUB_PAT is not configured; Jira run on thread %s will attempt "
-            "bot-token fallback",
+            "GITHUB_PAT is not configured; Jira run on thread %s will attempt bot-token fallback",
             thread_id,
         )
         # Fall through — bot-token-only mode or email-based paths below will

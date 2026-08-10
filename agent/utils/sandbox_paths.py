@@ -10,6 +10,8 @@ from typing import Any
 
 from deepagents.backends.protocol import SandboxBackendProtocol
 
+from .sandbox_root import assert_outside_project
+
 logger = logging.getLogger(__name__)
 
 _WORK_DIR_CACHE_ATTR = "_open_swe_resolved_work_dir"
@@ -26,7 +28,13 @@ async def aresolve_repo_dir(sandbox_backend: SandboxBackendProtocol, repo_name: 
 
 
 async def aresolve_sandbox_work_dir(sandbox_backend: SandboxBackendProtocol) -> str:
-    """Resolve a writable base directory for repository operations."""
+    """Resolve a writable base directory for repository operations.
+
+    A resolved directory inside this project's checkout is refused outright
+    (``SandboxRootInsideProjectError``) instead of being used: writing there
+    means the agent is operating on us rather than on the target repository,
+    and a run that cannot isolate itself must stop rather than contaminate.
+    """
     cached_work_dir = getattr(sandbox_backend, _WORK_DIR_CACHE_ATTR, None)
     if isinstance(cached_work_dir, str) and cached_work_dir:
         return cached_work_dir
@@ -35,6 +43,7 @@ async def aresolve_sandbox_work_dir(sandbox_backend: SandboxBackendProtocol) -> 
     async for candidate in _iter_work_dir_candidates(sandbox_backend):
         checked_candidates.append(candidate)
         if await _is_writable_directory(sandbox_backend, candidate):
+            assert_outside_project(candidate, source="resolved sandbox work directory")
             _cache_work_dir(sandbox_backend, candidate)
             return candidate
 

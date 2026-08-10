@@ -272,7 +272,9 @@ def get_workflow_step(poller_constant: str) -> WorkflowStep | None:
 
 def gate_steps() -> tuple[WorkflowStep, ...]:
     """The three agent-park gates (Em Revisão de Spec, Em Code Review, Em Merge)."""
-    return tuple(s for s in WORKFLOW_STEPS if s.transition_initiator is TransitionInitiator.AGENT_GATE)
+    return tuple(
+        s for s in WORKFLOW_STEPS if s.transition_initiator is TransitionInitiator.AGENT_GATE
+    )
 
 
 def post_gate_steps() -> tuple[WorkflowStep, ...]:
@@ -285,8 +287,7 @@ def post_gate_steps() -> tuple[WorkflowStep, ...]:
         s
         for s in WORKFLOW_STEPS
         if s.transition_initiator is TransitionInitiator.HUMAN
-        and s.poller_constant
-        not in ("COLUMN_TRIGGER", "COLUMN_SPEC_APPROVED", "COLUMN_MERGED")
+        and s.poller_constant not in ("COLUMN_TRIGGER", "COLUMN_SPEC_APPROVED", "COLUMN_MERGED")
         # COLUMN_TRIGGER is the Step-A trigger, not a post-gate.
         # COLUMN_SPEC_APPROVED and COLUMN_MERGED are post-gate, but Step B
         # already covers them through _post_gate_columns() in jira_poller.
