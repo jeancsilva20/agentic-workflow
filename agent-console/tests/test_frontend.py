@@ -72,6 +72,49 @@ def test_config_panel_exposes_the_operational_controls(page: str) -> None:
     assert "claude" not in page.lower()
 
 
+def test_config_panel_reports_the_routing_table_instead_of_offering_it(page: str) -> None:
+    """Routing replaced the pickers: a table the operator reads, not edits."""
+    assert 'id="routing-body"' in page
+    for column in ("Agent", "Model", "Effort"):
+        assert f"<th>{column}</th>" in page
+    assert '"/api/config/routing"' in page
+    # A read-only table has no form control of its own.
+    assert page.index('id="routing-body"') > page.index('id="agent-config"')
+
+
+def test_observability_sections_are_rendered(page: str) -> None:
+    for element_id in (
+        "active-agents",
+        "active-agents-body",
+        "usage-overview",
+        "usage-totals",
+        "usage-by-model",
+        "card-detail",
+        "card-detail-totals",
+        "card-detail-by-model",
+        "card-detail-by-agent",
+        "card-detail-timeline",
+    ):
+        assert f'id="{element_id}"' in page
+    for endpoint in (
+        '"/api/observability/live"',
+        '"/api/observability/usage"',
+        "/api/observability/cards/",
+    ):
+        assert endpoint in page
+    # Active agents sits between the queue summary cards and the run panels.
+    assert page.index('class="metrics"') < page.index('id="active-agents"')
+    assert page.index('id="active-agents"') < page.index('class="panels"')
+
+
+def test_the_page_never_carries_a_credential(page: str) -> None:
+    """The console makes no outbound call, so it has no token to embed."""
+    for secret_marker in ("api_key", "apiKey", "Authorization", "Bearer ", "ls__", "sk-"):
+        assert secret_marker not in page
+    # And nothing to send one to: every request target is a console path.
+    assert "https://" not in page
+
+
 def test_shadow_indicator_has_both_unmistakable_states(page: str) -> None:
     assert 'id="shadow-indicator"' in page
     assert "SHADOW MODE" in page

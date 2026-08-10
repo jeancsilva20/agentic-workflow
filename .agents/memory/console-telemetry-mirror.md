@@ -34,6 +34,11 @@ saída para outro serviço.
   no run e a conclusão procura o trace por ele — no projeto de tracing daquele
   grafo, porque cada grafo escreve em um projeto e a busca no projeto errado não
   acha nada.
+- **`cost_source` só existe no run.** Todo agregado (dia, card, por modelo, por
+  papel) soma custos e perde a origem, então rotular um total como "Estimado" só
+  é honesto onde dá para olhar os runs que o formam — a tela do card deriva isso
+  da própria timeline; o resumo do dia não tem de onde. Inventar o rótulo no
+  agregado afirma precificação que ninguém verificou.
 - **Instrumentação é do ponto único de criação de run, não do call site.** Se
   cada gatilho (Jira, Slack, GitHub, agendamento) tivesse que montar e passar a
   telemetria, os que esquecerem somem das métricas. A derivação de rota é
