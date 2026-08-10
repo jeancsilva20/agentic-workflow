@@ -2,4 +2,6 @@
 - [Regras do fluxo Jira](jira-flow-rules.md) — quem move cada card, por que o JQL de resume cobre os pós-gate, archive/docs antes do merge, armadilha do shadow mode em teste
 - [Frontend do console](console-frontend-testing.md) — página é template único sem build; teste de DOM carrega o próprio template, e editar o template exige restart do workflow
 - [OpenSpec vendorizado e portado](openspec-vendoring.md) — skills servidas são ports sem CLI, sync pinado nunca sobrescreve o port, gates de SDD vivem em prompt/doc
+- [Harness Python e repo alvo](python-harness-target-repo.md) — "sem suíte" não bloqueia, "comando ambíguo" sim; alvo não tem pyproject/Makefile/CI/testes, verdade está no start.sh
+- [Prompt Jira e .format](jira-prompt-formatting.md) — as seções são templates com kwargs fixos; placeholder novo entre chaves vira KeyError em runtime
 - [Config operacional em runtime](console-runtime-config.md) — console escreve arquivo/poller lê no tick, loop asyncio único, um cron só, falha de efeito colateral vira warning

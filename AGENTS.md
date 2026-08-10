@@ -149,6 +149,33 @@ pinned commit and never pulls `main`. The four skills actually served to the age
 `openspec-propose`, `openspec-verify`, `openspec-archive`. `openspec/config.yaml` carries the
 target-repo context and the per-artifact rules those skills must satisfy.
 
+### Step 0 — Python Harness Engineer (before any exploration or code)
+
+On a Python repository the run has one mandatory step before SDD starts. The order is:
+
+```
+repository cloned / branch created (PASSO 2)
+  -> Run Python Harness Engineer   (agent/skills/python-harness/SKILL.md)
+  -> OpenSpec Explore (PASSO 3) -> OpenSpec Propose -> ... -> implementation
+```
+
+The harness is read-only apart from installing the project's own declared dependencies. It
+detects the Python version, the dependency manager, the install / run / test / lint /
+type-check / migration commands, the framework, the architecture layers and the required
+environment variables, and emits a **Harness Report**: as a fenced block in the thread *and*
+saved to `<working_dir>/harness/<ISSUE-KEY>-harness-report.md`, outside the repo clone so it
+never reaches `git status` or the PR. The saved copy is why the detection is not repeated on
+every model call — later steps and runs resumed after a gate read the file.
+
+The Harness Report is context for both the OpenSpec proposal (its Impact section and the
+lint/test entries in `tasks.md`) and the implementation (every command it runs). The agent MUST
+NOT edit a source file before the report exists.
+
+Two hard rules the skill enforces: if a safe test command cannot be determined, the harness
+asks on the Jira card and ends the turn (`HARNESS BLOCKED`) rather than guessing; and it never
+installs tooling the project has not declared — that is a separate, proposed decision (see
+`python-quality`).
+
 ### Gate 1 — before `Em Revisão de Spec`
 
 The agent MUST NOT call `jira_park_at_gate` for `Em Revisão de Spec` until all of these exist,
@@ -198,6 +225,32 @@ one). The four points and their message shapes:
 | `openspec-archive` complete (Gate 3) | `openspec: archived` |
 
 These are fire-and-forget pushes: a console that is down or slow must never affect a run.
+
+## Python Skill Loading (contextual, not always-on)
+
+Six Python skills live in `agent/skills/` and are served read-only to the agent under
+`/openspec-skills/` alongside the four OpenSpec ones. `SkillsMiddleware` lists every skill's
+name and description at run start; the agent reads a `SKILL.md` **only when the phase below
+calls for it**, so context cost is proportional to what the task actually needs. Loading all
+six on every run is the failure mode this table exists to prevent.
+
+| Phase | Skills to load | Why |
+|---|---|---|
+| After clone / before Explore (Step 0) | `python-harness` | Produces the Harness Report every later phase reads. Nothing else runs first. |
+| Explore / Propose (PASSO 3) | `python-engineering` + the Harness Report | Judge feasibility, layering and blast radius against the project's real conventions; no framework detail needed to write a spec. |
+| Implementation (PASSO 5) | `python-engineering`, `fastapi-engineering`, `python-testing` | The always-on trio for writing code on a FastAPI repo. Skip `fastapi-engineering` when the harness detected another framework or none. |
+| Implementation touching models / queries / schema | + `python-database` | Load only when the change touches persistence. Its rule — every schema change ships an Alembic migration in the same commit — is a gate on that kind of change. |
+| Quality gates (end of PASSO 5, and PASSO 6) | + `python-quality` | Detect the project's declared gates, run them, and report honestly before parking. |
+| Review / Verify (PASSO 6, before `Em Code Review`) | `python-quality` + `openspec-verify` | The code-vs-spec check and the gate run, together. |
+| Pre-merge (PASSO 8) | `openspec-archive` | Python skills are no longer needed; the diff is archive + docs. |
+
+Rules that hold across all phases:
+
+- Load a skill when you reach its phase, not preemptively, and do not re-read a `SKILL.md` you
+  already read in this run.
+- `python-engineering` is the base; the others assume it and do not repeat it.
+- Every one of them defers to the Harness Report for commands and to the target repository's
+  existing conventions for style. A skill never overrides what the repo already does.
 
 <!-- OPENWIKI:START -->
 

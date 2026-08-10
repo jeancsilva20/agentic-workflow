@@ -66,6 +66,12 @@ PASSO 1  Collect Jira context (issue, description, acceptance criteria, comments
 PASSO 2  Prepare environment (clone, branch feat/spec-JIRA-XXXX-descricao-curta)
   |
   v
+PASSO 2.5 Python Harness Engineer (python-harness skill): detect version, dependency
+  |      manager, install/run/test/lint/typecheck/migration commands, framework,
+  |      layers, env vars -> Harness Report (thread + <working_dir>/harness/)
+  |      cannot determine a safe test command -> ask on the card and stop
+  |
+  v
 PASSO 3  Analyze code + generate OpenSpec artifacts (openspec-explore, openspec-propose skills)
   |
   v
