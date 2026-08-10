@@ -71,3 +71,6 @@ __pycache__/
 
 #
 logs/
+
+# Runtime config the agent console writes (operational values only, no secrets)
+agent-console/data/
