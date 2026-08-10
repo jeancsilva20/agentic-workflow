@@ -1,0 +1,1923 @@
+Quero evoluir o sistema atual do Sensedia Agentic Workflow para implementar duas capacidades integradas:
+
+1. MODEL ROUTING automático entre Haiku, Sonnet e Opus de acordo com o papel do agente e a complexidade da tarefa.
+2. OBSERVABILIDADE em tempo real/near-real-time mostrando agentes, modelos, tokens e custos associados a cada card Jira.
+
+O projeto já está rodando em LangGraph e possui tracing ativo no LangSmith.
+
+IMPORTANTE:
+
+Antes de alterar qualquer código, analise a implementação atual.
+
+Não reescreva a arquitetura existente.
+
+Preserve:
+
+- LangGraph;
+- threads determinísticas;
+- Jira Poller;
+- scheduler;
+- durable execution;
+- parking/resume;
+- Human in the Loop;
+- Agent Console;
+- Sensedia Agentic Workflow;
+- LangSmith tracing;
+- OpenSpec;
+- Python Harness;
+- Coding Agent;
+- Reviewer Agent;
+- Execution Log.
+
+Faça mudanças incrementais.
+
+==================================================
+1. ALTERAÇÃO IMPORTANTE EM RELAÇÃO À CONFIGURAÇÃO ANTERIOR
+==================================================
+
+Existe uma decisão arquitetural nova.
+
+A seleção manual/global de modelo no frontend deixa de fazer sentido.
+
+Se atualmente existir na interface algo como:
+
+Modelo do agente
+[ Claude Sonnet ▼ ]
+
+ou qualquer mecanismo equivalente de:
+
+- selecionar manualmente o agente;
+- selecionar globalmente o modelo;
+- selecionar globalmente o effort;
+
+isso deve ser considerado OBSOLETO.
+
+Não manter um modelo único para todo o workflow.
+
+Não existe mais:
+
+MODEL = SONNET PARA TUDO
+
+ou:
+
+EFFORT = HIGH PARA TUDO
+
+Cada agent role deve possuir automaticamente seu próprio modelo e effort.
+
+Portanto remover ou substituir no frontend os controles globais de:
+
+- Model;
+- Effort;
+- Agent selection;
+
+caso existam.
+
+Não manter configurações mortas no backend.
+
+Antes de remover código, identifique dependências para evitar regressões.
+
+==================================================
+2. O QUE CONTINUA CONFIGURÁVEL NO FRONTEND
+==================================================
+
+A área operacional continua permitindo controlar:
+
+Shadow Mode
+[ ON / OFF ]
+
+Verificar Jira a cada
+[ 1 / 5 / 10 / 30 / 60 minutos ]
+
+Porém Model e Effort deixam de ser parâmetros globais.
+
+No lugar deles criar uma visualização:
+
+MODEL ROUTING
+
+Mostrando a estratégia automática utilizada pelo sistema.
+
+Por exemplo:
+
+Jira Triage
+Haiku
+
+Python Harness
+Haiku
+
+OpenSpec Author
+Sonnet · High
+
+OpenSpec Reviewer
+Opus · High
+
+Coding Agent
+Sonnet · Medium
+
+OpenSpec Verifier
+Sonnet · High
+
+Code Reviewer
+Opus · High
+
+Docs
+Haiku / Sonnet
+
+Essa área é inicialmente INFORMATIVA.
+
+A fonte de verdade é o backend.
+
+==================================================
+3. PRINCÍPIO DO MODEL ROUTING
+==================================================
+
+Implementar a seguinte filosofia:
+
+HAIKU
+=
+operação, descoberta, classificação e tarefas simples.
+
+SONNET
+=
+produção, especificação, implementação e execução.
+
+OPUS
+=
+julgamento, revisão crítica e escalonamento.
+
+O objetivo não é utilizar Opus em todas as tarefas.
+
+O objetivo é investir maior capacidade principalmente nos pontos em que uma decisão ruim gera grande retrabalho.
+
+Principalmente:
+
+- revisão da OpenSpec;
+- code review;
+- arquitetura complexa;
+- debugging difícil;
+- situações em que Sonnet falhou repetidamente.
+
+==================================================
+4. AGENT ROLES
+==================================================
+
+Formalizar no runtime os agent roles.
+
+Utilizar nomes claros e centralizados, por exemplo:
+
+jira_triage
+
+python_harness
+
+spec_author
+
+spec_reviewer
+
+spec_adjuster
+
+coding_agent
+
+code_adjuster
+
+openspec_verifier
+
+code_reviewer
+
+docs_agent
+
+archive_agent
+
+escalation_agent
+
+Evitar registrar toda execução simplesmente como:
+
+agent
+
+Precisamos saber exatamente qual papel está atuando.
+
+==================================================
+5. JIRA TRIAGE
+==================================================
+
+Modelo padrão:
+
+Haiku
+
+Responsabilidades:
+
+- interpretar o card Jira;
+- coletar informações;
+- extrair requisitos;
+- analisar comentários;
+- identificar metadados;
+- executar classificação inicial;
+- atividades operacionais simples.
+
+Essa etapa não deve utilizar Sonnet ou Opus por padrão.
+
+==================================================
+6. PYTHON HARNESS
+==================================================
+
+Modelo padrão:
+
+Haiku
+
+Responsabilidades:
+
+- identificar Python;
+- identificar FastAPI;
+- detectar requirements/pyproject;
+- descobrir arquitetura;
+- detectar testes;
+- detectar lint;
+- detectar type checking;
+- detectar migrations;
+- descobrir comandos;
+- preparar contexto para os próximos agentes.
+
+Grande parte desse processo deve utilizar ferramentas e detecção determinística.
+
+Não usar LLM caro para operações que podem ser resolvidas diretamente.
+
+==================================================
+7. OPENSPEC AUTHOR
+==================================================
+
+Modelo:
+
+Sonnet
+
+Effort:
+
+high, quando suportado pelo modelo configurado.
+
+Responsabilidades:
+
+- compreender Jira;
+- analisar código;
+- analisar arquitetura;
+- produzir OpenSpec;
+- proposal;
+- specs;
+- design;
+- tasks.
+
+A qualidade dessa etapa é importante porque uma boa especificação reduz a complexidade e ambiguidade durante implementação.
+
+==================================================
+8. OPENSPEC REVIEWER
+==================================================
+
+Modelo:
+
+Opus
+
+Effort:
+
+high por padrão.
+
+Permitir effort superior para mudanças extremamente complexas somente quando suportado pelo modelo atualmente configurado.
+
+O Spec Reviewer deve ser INDEPENDENTE do Spec Author.
+
+Sua missão é tentar encontrar defeitos na especificação.
+
+Analisar:
+
+- requisitos ausentes;
+- ambiguidades;
+- edge cases;
+- arquitetura;
+- segurança;
+- banco;
+- APIs;
+- impactos;
+- regressões;
+- testes;
+- tasks incompletas;
+- inconsistência entre proposal/spec/design/tasks.
+
+Fluxo:
+
+Sonnet
+gera OpenSpec
+
+↓
+
+Opus
+review da OpenSpec
+
+↓
+
+problema encontrado?
+
+SIM
+→ Sonnet corrige
+→ Opus revisa novamente
+
+NÃO
+→ Em Revisão de Spec
+→ Human in the Loop
+
+Limitar ciclos automáticos para evitar loops infinitos.
+
+==================================================
+9. AJUSTAR SPEC
+==================================================
+
+Quando existir feedback humano claro no Jira:
+
+Sonnet
+Effort high
+
+deve aplicar o feedback.
+
+Depois:
+
+Opus
+executa novo Spec Review.
+
+Quando o card for colocado em Ajustar Spec SEM comentário claro:
+
+utilizar Opus para reavaliar criticamente:
+
+- Jira;
+- código;
+- OpenSpec;
+- arquitetura;
+
+porque nesse cenário existe maior ambiguidade.
+
+==================================================
+10. CODING AGENT
+==================================================
+
+Modelo padrão:
+
+Sonnet
+
+Effort padrão:
+
+medium.
+
+Aumentar para high quando necessário.
+
+A implementação deve partir da OpenSpec aprovada.
+
+O Coding Agent não deve redescobrir toda a solução do zero.
+
+Utilizar:
+
+proposal
+specs
+design
+tasks
+
+como contrato de implementação.
+
+==================================================
+11. OPENSPEC VERIFY
+==================================================
+
+Modelo:
+
+Sonnet
+
+Effort:
+
+high.
+
+Executar antes de considerar a implementação pronta para Code Review.
+
+Comparar:
+
+OpenSpec
+
+×
+
+código
+
+×
+
+testes
+
+Verificar:
+
+- requisitos;
+- scenarios;
+- design;
+- tasks;
+- implementação;
+- testes;
+- divergências.
+
+Falha de verify deve impedir avanço automático.
+
+==================================================
+12. CODE REVIEWER
+==================================================
+
+Modelo:
+
+Opus
+
+Effort:
+
+high por padrão.
+
+O Reviewer deve ser independente do Coding Agent.
+
+Deve analisar a PR real.
+
+Utilizar:
+
+- diff;
+- OpenSpec;
+- testes;
+- checks;
+- arquitetura;
+- Python skills;
+- FastAPI;
+- Pydantic;
+- SQLAlchemy;
+- Alembic;
+- segurança;
+- regressões;
+- edge cases.
+
+Quando encontrar problema:
+
+publicar comentário/review no GitHub.
+
+Quando existir linha específica relacionada ao problema:
+
+preferir comentário inline.
+
+==================================================
+13. AJUSTAR CODE
+==================================================
+
+Modelo:
+
+Sonnet
+
+Effort:
+
+medium.
+
+Usar high para correções complexas.
+
+O agente deve:
+
+- ler reviews do GitHub;
+- identificar solicitações;
+- corrigir;
+- testar;
+- executar quality gates;
+- commit;
+- push;
+- retornar para Em Code Review.
+
+Quando voltar:
+
+Opus executa novamente o Code Review.
+
+==================================================
+14. DOCUMENTAÇÃO E ARCHIVE
+==================================================
+
+Operações mecânicas:
+
+Haiku.
+
+Revisão semântica significativa de documentação:
+
+Sonnet.
+
+Archive OpenSpec predominantemente operacional:
+
+Haiku + ferramentas/OpenSpec CLI.
+
+Não utilizar Opus para documentação ou archive rotineiro sem necessidade.
+
+==================================================
+15. ESCALATION AGENT
+==================================================
+
+Opus deve funcionar também como agente de escalonamento.
+
+Sonnet continua sendo o implementador padrão.
+
+Escalar para Opus quando houver indícios reais de dificuldade.
+
+Exemplos:
+
+- Coding Agent falhou duas vezes na mesma task;
+- mesma falha de teste persiste;
+- card voltou repetidamente de Code Review;
+- mudança arquitetural significativa;
+- autenticação/autorização crítica;
+- concorrência;
+- async complexo;
+- migration complexa;
+- problema de segurança;
+- bug difícil de reproduzir;
+- refactor amplo.
+
+Registrar sempre:
+
+escalation_reason.
+
+==================================================
+16. CLASSIFICAÇÃO DE COMPLEXIDADE
+==================================================
+
+Criar uma classificação:
+
+LOW
+MEDIUM
+HIGH
+CRITICAL
+
+A classificação deve utilizar preferencialmente sinais determinísticos.
+
+Exemplos:
+
+- quantidade de arquivos/módulos afetados;
+- database migration;
+- alteração de schema;
+- autenticação;
+- autorização;
+- integração externa;
+- concorrência;
+- async;
+- segurança;
+- arquitetura;
+- quantidade de retries;
+- falhas de testes;
+- retornos de review.
+
+Evitar gastar Opus apenas para descobrir se devemos usar Opus.
+
+==================================================
+17. MODEL CAPABILITIES
+==================================================
+
+Centralizar as capacidades dos modelos reais configurados.
+
+Não assumir que todos suportam os mesmos recursos.
+
+Manter algo conceitualmente equivalente a:
+
+model_capabilities
+
+Haiku:
+  effort_supported: ...
+
+Sonnet:
+  effort_supported: ...
+  available_efforts: [...]
+
+Opus:
+  effort_supported: ...
+  available_efforts: [...]
+
+Os valores devem ser descobertos/definidos conforme os modelos realmente utilizados pelo projeto.
+
+Se um modelo não suportar effort:
+
+NÃO enviar o parâmetro.
+
+No frontend mostrar:
+
+Effort: N/A
+
+e não um valor fictício.
+
+==================================================
+18. MODEL ROUTER CENTRAL
+==================================================
+
+Criar uma única camada responsável pela escolha.
+
+Algo conceitualmente equivalente a:
+
+resolve_model(
+    agent_role,
+    complexity,
+    retry_count,
+    workflow_context
+)
+
+Retorno:
+
+ModelConfig
+
+contendo:
+
+model
+effort
+reason
+
+Evitar espalhar regras como:
+
+if role == ...
+
+por vários graphs e arquivos.
+
+==================================================
+19. REMOVER MANUAL MODEL SELECTION
+==================================================
+
+Remover o conceito anterior de:
+
+SMART ROUTING
+versus
+MANUAL ROUTING
+
+Neste momento NÃO queremos modo manual.
+
+O funcionamento padrão e único deve ser:
+
+AUTOMATIC MODEL ROUTING.
+
+Se futuramente houver necessidade de override administrativo, ele deverá ser desenhado como funcionalidade separada, auditável e excepcional.
+
+Não preservar código morto apenas para manter compatibilidade visual com o seletor anterior.
+
+==================================================
+20. FRONTEND — NOVA ÁREA MODEL ROUTING
+==================================================
+
+Substituir os antigos selects de Model/Effort por uma área informativa.
+
+Exemplo:
+
+MODEL ROUTING
+
+Agent                  Model        Effort
+------------------------------------------------
+Jira Triage            Haiku        N/A
+Python Harness         Haiku        N/A
+OpenSpec Author        Sonnet       High
+OpenSpec Reviewer      Opus         High
+Coding Agent           Sonnet       Medium
+OpenSpec Verifier      Sonnet       High
+Code Reviewer          Opus         High
+Docs Agent             Dynamic      Dynamic
+
+Mostrar valores vindos do BACKEND.
+
+Não hardcode a tabela apenas no frontend.
+
+==================================================
+21. LANGSMITH
+==================================================
+
+O projeto já possui LangSmith tracing ativo.
+
+Utilizar LangSmith como uma das principais fontes de observabilidade de execução e LLM usage.
+
+Antes de implementar o dashboard de consumo, verificar dados REAIS disponíveis nos traces atuais.
+
+Não presumir disponibilidade.
+
+==================================================
+22. DATA AVAILABILITY ASSESSMENT
+==================================================
+
+Antes de implementar telemetria, verificar se conseguimos obter atualmente:
+
+jira_issue_key
+
+thread_id
+
+trace_id
+
+run_id
+
+agent_role
+
+workflow_stage
+
+model
+
+effort
+
+routing_reason
+
+complexity_tier
+
+start_time
+
+end_time
+
+duration
+
+input_tokens
+
+output_tokens
+
+total_tokens
+
+cache tokens
+
+input_cost
+
+output_cost
+
+total_cost
+
+status
+
+error
+
+Classificar cada campo como:
+
+AVAILABLE_NOW
+
+AVAILABLE_WITH_METADATA
+
+REQUIRES_INSTRUMENTATION
+
+NOT_AVAILABLE
+
+Apresentar esse diagnóstico antes de implementar.
+
+==================================================
+23. METADATA DOS TRACES
+==================================================
+
+Toda execução relevante deve carregar metadata padronizada.
+
+Exemplo conceitual:
+
+{
+    "jira_issue_key": "SSAI-88",
+    "thread_id": "...",
+    "agent_role": "code_reviewer",
+    "workflow_stage": "code_review",
+    "model": "...",
+    "effort": "high",
+    "routing_mode": "automatic",
+    "complexity_tier": "high",
+    "routing_reason": "independent_code_review"
+}
+
+Essa metadata deve ser enviada ao LangSmith.
+
+==================================================
+24. CHILD RUNS
+==================================================
+
+Garantir que informações essenciais sejam propagadas aos child runs relevantes.
+
+Principalmente:
+
+jira_issue_key
+
+thread_id
+
+agent_role
+
+model
+
+workflow_stage
+
+Precisamos conseguir agregar corretamente chamadas LLM mesmo quando um único agente produz diversos child runs.
+
+==================================================
+25. UNIDADE PRINCIPAL DE AGREGAÇÃO
+==================================================
+
+Não utilizar somente:
+
+trace_id.
+
+Um card Jira atravessa múltiplos runs e múltiplos traces devido aos Human in the Loop.
+
+A unidade de negócio é:
+
+jira_issue_key
+
+associada à:
+
+thread_id
+
+Portanto precisamos poder agregar:
+
+TODOS OS TRACES DA THREAD
+
+e calcular o consumo completo daquele card.
+
+==================================================
+26. FLUXO CONCEITUAL DA TELEMETRIA
+==================================================
+
+Jira SSAI-88
+      ↓
+Thread determinística
+      ↓
+Triage
+Haiku
+      ↓
+Spec Author
+Sonnet
+      ↓
+Spec Reviewer
+Opus
+      ↓
+HUMAN
+      ↓
+Coding
+Sonnet
+      ↓
+Verify
+Sonnet
+      ↓
+Code Review
+Opus
+      ↓
+HUMAN
+      ↓
+Archive
+Haiku
+
+Todos esses runs devem continuar associados a:
+
+SSAI-88
++
+thread_id.
+
+==================================================
+27. REAL-TIME E NEAR-REAL-TIME
+==================================================
+
+Diferenciar:
+
+AGENT STATUS
+
+de:
+
+LLM USAGE.
+
+Agent status deve ser o mais próximo possível de tempo real.
+
+Reutilizar o sistema atual de eventos do Agent Console.
+
+Tokens e custos podem ser near-real-time.
+
+Atualizar após conclusão das chamadas LLM/runs.
+
+Não é necessário tentar calcular tokens durante cada token streamed.
+
+==================================================
+28. ACTIVE AGENTS
+==================================================
+
+Adicionar ao Sensedia Agentic Workflow uma área:
+
+ACTIVE AGENTS
+
+Mostrar para cada execução:
+
+Jira Card
+
+Agent Role
+
+Workflow Stage
+
+Model
+
+Effort
+
+Complexity
+
+Started
+
+Duration
+
+Status
+
+Exemplo:
+
+SSAI-88
+
+Coding Agent
+
+Implementation
+
+Sonnet
+
+Medium
+
+HIGH
+
+Running · 01:43
+
+==================================================
+29. MOSTRAR ROTEAMENTO EM TEMPO REAL
+==================================================
+
+A interface deve permitir observar claramente:
+
+qual agente está trabalhando
+
+↓
+
+qual modelo foi selecionado
+
+↓
+
+qual effort
+
+↓
+
+por que esse modelo foi escolhido.
+
+Exemplo:
+
+Coding Agent
+
+Sonnet
+
+Effort Medium
+
+Routing:
+default implementation model
+
+Outro exemplo:
+
+Coding Agent
+
+Opus
+
+Effort High
+
+Escalated
+
+Reason:
+2 failed implementation attempts
+
+==================================================
+30. USAGE POR CARD JIRA
+==================================================
+
+Ao selecionar um card, mostrar:
+
+JIRA CARD USAGE
+
+Exemplo:
+
+SSAI-88
+
+Total LLM Calls
+...
+
+Input Tokens
+...
+
+Output Tokens
+...
+
+Total Tokens
+...
+
+Total Cost
+...
+
+Duration
+...
+
+Valores devem ser REAIS quando disponíveis.
+
+==================================================
+31. USAGE POR MODELO
+==================================================
+
+Mostrar:
+
+MODEL USAGE
+
+Haiku
+
+Input Tokens
+...
+
+Output Tokens
+...
+
+Total Tokens
+...
+
+Cost
+...
+
+Sonnet
+...
+
+Opus
+...
+
+Isso deve permitir entender quanto do custo do card foi gasto em cada classe de modelo.
+
+==================================================
+32. USAGE POR AGENT ROLE
+==================================================
+
+Mostrar:
+
+AGENT USAGE
+
+Jira Triage
+Haiku
+tokens
+cost
+
+OpenSpec Author
+Sonnet
+tokens
+cost
+
+OpenSpec Reviewer
+Opus
+tokens
+cost
+
+Coding Agent
+Sonnet
+tokens
+cost
+
+Code Reviewer
+Opus
+tokens
+cost
+
+etc.
+
+Precisamos conseguir responder:
+
+"Quanto custou gerar a Spec?"
+
+"Quanto custou o Code Review?"
+
+"Quanto custou a implementação?"
+
+==================================================
+33. MODEL + AGENT MATRIX
+==================================================
+
+A visualização deve também permitir responder:
+
+quantos tokens cada agente consumiu utilizando determinado modelo.
+
+Exemplo:
+
+Spec Author
+Sonnet
+42k tokens
+
+Spec Reviewer
+Opus
+18k tokens
+
+Coding Agent
+Sonnet
+93k tokens
+
+Code Reviewer
+Opus
+31k tokens
+
+==================================================
+34. TIMELINE DO CARD
+==================================================
+
+Adicionar uma timeline.
+
+Exemplo:
+
+09:02
+Jira Triage
+Haiku
+2.1k tokens
+
+09:03
+Python Harness
+Haiku
+1.4k tokens
+
+09:05
+OpenSpec Author
+Sonnet
+18k tokens
+
+09:12
+OpenSpec Reviewer
+Opus
+7k tokens
+
+10:30
+Coding Agent
+Sonnet
+41k tokens
+
+10:49
+Code Reviewer
+Opus
+9k tokens
+
+Quando disponível mostrar:
+
+duration
+
+tokens
+
+cost
+
+status.
+
+==================================================
+35. COST SOURCE
+==================================================
+
+Utilizar a seguinte prioridade.
+
+PRIORIDADE 1:
+
+custo fornecido diretamente pela telemetria/LangSmith.
+
+PRIORIDADE 2:
+
+se existirem tokens + identificação confiável do modelo, calcular custo estimado no BACKEND.
+
+Nesse caso mostrar:
+
+Estimated Cost
+
+PRIORIDADE 3:
+
+caso não existam dados suficientes:
+
+Cost unavailable
+
+Nunca mostrar:
+
+$0.00
+
+quando a informação for desconhecida.
+
+==================================================
+36. PRICING
+==================================================
+
+Não hardcode preço no JavaScript/frontend.
+
+Se precisar existir uma tabela de pricing para fallback:
+
+ela deve existir no backend.
+
+A configuração deve:
+
+- ser centralizada;
+- possuir data de atualização;
+- permitir manutenção;
+- identificar os modelos;
+- nunca ficar espalhada pelo código.
+
+Preferir custo retornado pela fonte de telemetria quando disponível.
+
+==================================================
+37. LANGSMITH SECURITY
+==================================================
+
+Frontend NÃO deve acessar LangSmith diretamente com credenciais.
+
+Arquitetura:
+
+Sensedia Agentic Workflow
+        ↓
+Backend
+        ↓
+LangSmith SDK/API
+
+Nunca retornar:
+
+LANGSMITH_API_KEY
+
+ANTHROPIC_API_KEY
+
+JIRA_TOKEN
+
+GITHUB_TOKEN
+
+ou qualquer outro secret.
+
+==================================================
+38. API DE OBSERVABILIDADE
+==================================================
+
+Avaliar endpoints seguindo o padrão atual.
+
+Conceitualmente:
+
+GET /api/observability/live
+
+GET /api/observability/usage
+
+GET /api/observability/cards/<jira_issue_key>
+
+GET /api/observability/cards/<jira_issue_key>/usage
+
+GET /api/observability/cards/<jira_issue_key>/timeline
+
+GET /api/observability/routing
+
+Os nomes reais devem seguir o padrão existente.
+
+==================================================
+39. NÃO SOBRECARREGAR LANGSMITH
+==================================================
+
+Não consultar LangSmith constantemente sem necessidade.
+
+Avaliar estratégia utilizando:
+
+- eventos locais;
+- consultas após conclusão de runs;
+- refresh periódico;
+- cache;
+- agregação no backend.
+
+Não consultar LangSmith a cada render do browser.
+
+==================================================
+40. CACHE/PROJEÇÃO LOCAL
+==================================================
+
+Avaliar se é necessário manter uma projeção local para performance.
+
+Exemplo conceitual:
+
+JiraUsageSummary
+
+jira_issue_key
+
+thread_id
+
+input_tokens
+
+output_tokens
+
+total_tokens
+
+total_cost
+
+llm_calls
+
+last_updated
+
+E:
+
+AgentUsageSummary
+
+jira_issue_key
+
+agent_role
+
+model
+
+input_tokens
+
+output_tokens
+
+cost
+
+Essa projeção NÃO substitui LangSmith.
+
+Ela serve apenas para acelerar o frontend.
+
+Só implemente caso necessário.
+
+==================================================
+41. DASHBOARD GERAL
+==================================================
+
+Adicionar indicadores como:
+
+ACTIVE AGENTS
+
+TOKENS TODAY
+
+ESTIMATED / ACTUAL COST TODAY
+
+ACTIVE JIRA CARDS
+
+Haiku Usage
+
+Sonnet Usage
+
+Opus Usage
+
+Não poluir o dashboard.
+
+Priorizar informação operacional.
+
+==================================================
+42. VISUALIZAÇÕES
+==================================================
+
+Prioridade de visualização:
+
+1. Active Agents.
+2. Tokens por modelo.
+3. Cost por modelo.
+4. Tokens por agent role.
+5. Cost por agent role.
+6. Consumo total por Jira Card.
+7. Timeline de um card.
+
+Evitar gráficos puramente decorativos.
+
+==================================================
+43. FRONTEND FINAL
+==================================================
+
+Preservar:
+
+logo Sensedia
+
+Sensedia Agentic Workflow
+
+Shadow Mode
+
+Polling configuration
+
+Working
+
+Waiting on Human
+
+Queued
+
+Dead
+
+Queue
+
+Runs
+
+Execution Log
+
+Remover/substituir:
+
+Model dropdown global
+
+Effort dropdown global
+
+Agent selection manual global
+
+Adicionar:
+
+MODEL ROUTING
+
+ACTIVE AGENTS
+
+MODEL USAGE
+
+AGENT USAGE
+
+JIRA CARD USAGE
+
+==================================================
+44. EXEMPLO CONCEITUAL DO TOPO
+==================================================
+
+[Sensedia Logo] Sensedia Agentic Workflow
+
+Idle
+Last Jira tick 20s ago
+
+Shadow Mode
+[ ON ]
+
+Jira Polling
+[ 5 minutes ]
+
+-------------------------------------
+
+MODEL ROUTING
+
+Triage             Haiku
+Harness            Haiku
+Spec Author        Sonnet · High
+Spec Reviewer      Opus · High
+Coding             Sonnet · Medium
+Verify             Sonnet · High
+Code Reviewer      Opus · High
+
+-------------------------------------
+
+ACTIVE AGENTS
+
+SSAI-88
+Coding Agent
+Sonnet · Medium
+Running · 1m43s
+
+SSAI-91
+Spec Reviewer
+Opus · High
+Running · 22s
+
+==================================================
+45. DETAIL DO CARD
+==================================================
+
+Ao selecionar SSAI-88:
+
+SSAI-88
+
+Status
+Em Desenvolvimento
+
+Current Agent
+Coding Agent
+
+Current Model
+Sonnet
+
+Effort
+Medium
+
+Complexity
+High
+
+Routing Reason
+Default implementation route
+
+---------------------------------
+
+TOTAL USAGE
+
+LLM Calls
+17
+
+Input Tokens
+...
+
+Output Tokens
+...
+
+Total Tokens
+...
+
+Total Cost
+...
+
+---------------------------------
+
+BY MODEL
+
+Haiku
+...
+
+Sonnet
+...
+
+Opus
+...
+
+---------------------------------
+
+BY AGENT
+
+Triage
+...
+
+Spec Author
+...
+
+Spec Reviewer
+...
+
+Coding Agent
+...
+
+Code Reviewer
+...
+
+---------------------------------
+
+TIMELINE
+...
+
+==================================================
+46. ESCALATION NA INTERFACE
+==================================================
+
+Quando houver:
+
+Sonnet
+→ Opus
+
+por escalation, deixar isso explícito.
+
+Exemplo:
+
+ESCALATED
+
+Sonnet → Opus
+
+Reason:
+Coding Agent failed twice on the same task.
+
+Registrar também no Execution Log.
+
+==================================================
+47. EXECUTION LOG
+==================================================
+
+Adicionar eventos como:
+
+routing: jira_triage → Haiku
+
+routing: spec_author → Sonnet/high
+
+routing: spec_reviewer → Opus/high
+
+routing: coding_agent → Sonnet/medium
+
+routing: coding_agent escalated Sonnet → Opus
+
+usage: coding_agent 18,420 tokens
+
+cost: SSAI-88 updated
+
+Não gerar log excessivo por token individual.
+
+==================================================
+48. TESTES DO MODEL ROUTING
+==================================================
+
+Criar testes garantindo:
+
+jira_triage → Haiku
+
+python_harness → Haiku
+
+spec_author → Sonnet
+
+spec_reviewer → Opus
+
+coding_agent → Sonnet
+
+openspec_verifier → Sonnet
+
+code_reviewer → Opus
+
+archive simples → Haiku
+
+Também:
+
+Sonnet → Opus escalation
+
+complexity HIGH
+
+complexity CRITICAL
+
+retry threshold
+
+model capability
+
+effort incompatível
+
+ausência de effort
+
+==================================================
+49. TESTES DE TELEMETRIA
+==================================================
+
+Testar:
+
+jira_issue_key nos traces
+
+thread_id
+
+agent_role
+
+workflow_stage
+
+model
+
+effort
+
+routing_reason
+
+input_tokens
+
+output_tokens
+
+total_tokens
+
+cost
+
+agregação por Jira
+
+agregação por modelo
+
+agregação por agent role
+
+card com múltiplos runs
+
+card com Ajustar Spec
+
+card com Ajustar Code
+
+escalation
+
+dados ausentes
+
+custo indisponível
+
+segurança das credenciais.
+
+==================================================
+50. COMPATIBILIDADE COM HUMAN IN THE LOOP
+==================================================
+
+Um mesmo Jira card continuará possuindo vários runs separados por decisões humanas.
+
+A telemetria precisa sobreviver a esses gates.
+
+Exemplo:
+
+Spec
+↓
+Human approval
+↓
+Implementation
+↓
+Human review
+↓
+Merge
+
+Todos os runs continuam pertencendo ao mesmo:
+
+jira_issue_key
+
+e:
+
+thread_id.
+
+==================================================
+51. RESULTADO FINAL DO ROUTING
+==================================================
+
+O fluxo deve ficar conceitualmente:
+
+JIRA
+ ↓
+HAIKU
+Triage
+ ↓
+HAIKU
+Python Harness
+ ↓
+SONNET HIGH
+OpenSpec Author
+ ↓
+OPUS HIGH
+OpenSpec Reviewer
+ ↓
+HUMAN SPEC APPROVAL
+ ↓
+SONNET MEDIUM/HIGH
+Coding Agent
+ ↓
+SONNET HIGH
+OpenSpec Verify
+ ↓
+OPUS HIGH
+Code Reviewer
+ ↓
+HUMAN CODE REVIEW
+ ↓
+HAIKU/SONNET
+Archive + Docs
+ ↓
+HUMAN MERGE
+ ↓
+Done
+
+Opus também funciona como escalation para situações complexas.
+
+==================================================
+52. ANÁLISE DE COMPLEXIDADE DA IMPLEMENTAÇÃO
+==================================================
+
+ANTES de modificar o sistema, apresentar:
+
+CURRENT MODEL CONFIGURATION
+
+CURRENT FRONTEND CONTROLS
+
+OBSOLETE CONTROLS
+
+CURRENT LANGSMITH DATA
+
+AVAILABLE METRICS
+
+MISSING METRICS
+
+REQUIRED METADATA
+
+MODEL ROUTING CHANGES
+
+BACKEND OBSERVABILITY CHANGES
+
+FRONTEND CHANGES
+
+ESTIMATED COMPLEXITY
+
+Classificar:
+
+LOW
+MEDIUM
+HIGH
+
+Explicar principalmente a complexidade de:
+
+- obter tokens;
+- obter custos;
+- correlacionar Jira com traces;
+- agregar múltiplos runs;
+- mostrar status em tempo real.
+
+Só depois implementar.
+
+==================================================
+53. MIGRAÇÃO DA CONFIGURAÇÃO ANTIGA
+==================================================
+
+Investigar configurações existentes como:
+
+model
+
+effort
+
+selected_model
+
+selected_agent
+
+manual_model
+
+manual_routing
+
+ou equivalentes.
+
+Caso tenham sido criadas pela versão anterior:
+
+identificar consumidores.
+
+Migrar para o novo Model Router.
+
+Remover configurações obsoletas quando seguro.
+
+Não deixar duas fontes de verdade.
+
+A fonte final deve ser:
+
+Model Routing Backend.
+
+==================================================
+54. CONFIGURAÇÃO FINAL DO FRONTEND
+==================================================
+
+Depois desta mudança, a área de configuração deve conter principalmente:
+
+SHADOW MODE
+
+JIRA POLLING
+
+e informações operacionais.
+
+Model e Effort passam a ser OBSERVABILIDADE, não configuração global.
+
+Ou seja:
+
+ANTES
+
+Shadow Mode
+Model
+Effort
+Polling
+
+DEPOIS
+
+Shadow Mode
+Polling
+
+Model Routing
+(read only)
+
+Active Agents
+(read only)
+
+Model Usage
+(read only)
+
+Agent Usage
+(read only)
+
+==================================================
+55. CRITÉRIOS DE ACEITE
+==================================================
+
+A implementação estará concluída quando:
+
+1. Não existir dependência funcional de um modelo global.
+2. Não existir dependência funcional de effort global.
+3. Não existir seleção manual global de agente/modelo.
+4. Model Router decidir modelo por agent_role.
+5. Spec Author utilizar Sonnet.
+6. Spec Reviewer utilizar Opus.
+7. Coding Agent utilizar Sonnet normalmente.
+8. Code Reviewer utilizar Opus.
+9. Tarefas simples utilizarem Haiku.
+10. Escalation para Opus funcionar.
+11. O frontend mostrar qual agente está ativo.
+12. O frontend mostrar qual modelo ele utiliza.
+13. O frontend mostrar effort quando aplicável.
+14. O frontend mostrar routing reason.
+15. Cada card possuir consumo agregado.
+16. Tokens serem mostrados quando disponíveis.
+17. Custos serem mostrados quando disponíveis.
+18. Custos estimados serem identificados como estimados.
+19. Consumo poder ser dividido por modelo.
+20. Consumo poder ser dividido por agent role.
+21. Múltiplos runs do mesmo card serem agregados.
+22. LangSmith credentials nunca chegarem ao browser.
+
+==================================================
+56. RELATÓRIO FINAL
+==================================================
+
+Ao terminar informar:
+
+- como funcionava a seleção de modelos antes;
+- quais controles ficaram obsoletos;
+- quais controles foram removidos;
+- como funciona o Model Router;
+- agent roles implementados;
+- modelo padrão de cada role;
+- effort de cada role;
+- regras de complexity routing;
+- regras de escalation;
+- metadata enviada ao LangSmith;
+- quais dados o LangSmith já fornecia;
+- quais exigiram instrumentação;
+- como tokens são obtidos;
+- como custos são obtidos;
+- como Jira e thread são correlacionados;
+- como múltiplos runs são agregados;
+- endpoints criados;
+- componentes frontend adicionados;
+- estratégia de real-time;
+- estratégia de cache;
+- testes realizados;
+- resultado dos testes;
+- limitações restantes.
+
+REGRA FINAL:
+
+O modelo não é mais escolhido globalmente pelo usuário.
+
+O sistema escolhe automaticamente o modelo mais adequado para cada papel.
+
+O frontend deve tornar essa decisão TRANSPARENTE e MENSURÁVEL.
+
+O objetivo é chegar a:
+
+AGENT ROLE
+→ MODEL ROUTING
+→ EXECUTION
+→ LANGSMITH TELEMETRY
+→ TOKENS
+→ COST
+→ QUALITY
+
+para podermos posteriormente avaliar objetivamente:
+
+"Usar Opus no Spec Review reduziu retrabalho?"
+
+"Quanto custa o Code Review automático?"
+
+"Quanto custa cada card Jira?"
+
+"Qual agente concentra maior consumo?"
+
+"O escalonamento para Opus melhora a taxa de sucesso?"
+
+Não construir apenas uma interface bonita.
+
+As informações exibidas precisam representar o runtime real.
