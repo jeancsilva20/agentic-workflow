@@ -1,0 +1,79 @@
+RuntimeError(
+  'Unknown source: jira'
+)Traceback (most recent call last):
+
+
+  File "/home/runner/workspace/agent/utils/auth.py", line 496, in resolve_github_token
+    return await resolve_token_from_email(
+  configurable.get(
+    "user_email"
+  ),
+  source
+)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/utils/auth.py", line 333, in resolve_token_from_email
+    await leave_failure_comment(source, message)
+
+
+  File "/home/runner/workspace/agent/utils/auth.py", line 296, in leave_failure_comment
+    raise ValueError(
+  f"Unknown source: {source}"
+)
+
+
+ValueError: Unknown source: jira
+
+
+
+The above exception was the direct cause of the following exception:
+
+
+
+Traceback (most recent call last):
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/main.py", line 3440, in astream
+    async for _ in runner.atick(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_runner.py", line 396, in atick
+    await arun_with_retry(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_retry.py", line 744, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 733, in ainvoke
+    input = await asyncio.create_task(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 501, in ainvoke
+    ret = await self.afunc(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/prepare_run.py", line 66, in abefore_agent
+    updates = await self._prepare(prepared_state, runtime)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 890, in _prepare
+    github_token, _expires_at = await resolve_github_token(self._config, self._thread_id)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/utils/auth.py", line 499, in resolve_github_token
+    raise RuntimeError(
+  str(exc)
+) from exc
+
+
+RuntimeError: Unknown source: jira
+
+
+During task with name 'PrepareAgentRunMiddleware.before_agent' and id '4516b1b2-0e68-49c3-c146-0c7a917a3349'
