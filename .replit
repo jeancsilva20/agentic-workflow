@@ -6,3 +6,52 @@ packages = ["cargo", "libiconv", "libxcrypt", "openssl", "pkg-config", "rustc"]
 
 [agent]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+AGENT_CONSOLE_URL = "http://localhost:5050"
+JIRA_POLLER_SHADOW_MODE = "1"
+JIRA_PROJECT_KEY = "SSAI"
+SANDBOX_TYPE = "local"
+LANGGRAPH_URL = "http://localhost:8000"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "LangGraph Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Agent Console"
+
+[[workflows.workflow]]
+name = "LangGraph Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/start-dev-server.sh"
+waitForPort = 8000
+
+[[workflows.workflow]]
+name = "Agent Console"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd agent-console && pip install -r requirements.txt -q && python app.py"
+waitForPort = 5050
+
+[workflows.workflow.metadata]
+outputType = "console"

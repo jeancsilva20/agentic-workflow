@@ -21,6 +21,5 @@
       "sweep_interval_minutes": 60,
       "default_ttl": 43200
     }
-  },
-  "env": ".env"
+  }
 }
