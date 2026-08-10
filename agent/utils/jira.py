@@ -117,21 +117,27 @@ async def get_issue(issue_key: str, fields: str = "*all") -> dict[str, Any]:
 
 async def search_issues(
     jql: str,
-    start_at: int = 0,
+    next_page_token: str | None = None,
     max_results: int = 50,
     fields: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Search issues via JQL (POST /rest/api/3/search)."""
-    body: dict[str, Any] = {"jql": jql, "startAt": start_at, "maxResults": max_results}
+    """Search issues via JQL (POST /rest/api/3/search/jql).
+
+    The legacy /rest/api/3/search endpoint was removed by Atlassian
+    (HTTP 410, CHANGE-2046). The replacement paginates with an opaque
+    `nextPageToken` instead of `startAt`/`total`.
+    """
+    body: dict[str, Any] = {"jql": jql, "maxResults": max_results}
+    if next_page_token:
+        body["nextPageToken"] = next_page_token
     if fields:
         body["fields"] = fields
-    result = await _request("POST", "/rest/api/3/search", json_body=body)
+    result = await _request("POST", "/rest/api/3/search/jql", json_body=body)
     if "error" in result:
         return result
     return {
         "issues": result.get("issues", []),
-        "total": result.get("total", 0),
-        "start_at": result.get("startAt", 0),
+        "next_page_token": result.get("nextPageToken"),
     }
 
 

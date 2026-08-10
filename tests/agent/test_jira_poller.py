@@ -100,6 +100,8 @@ async def test_step_a_detects_fa_alert_labeled_cards() -> None:
         ),
         patch(f"{_MODULE}.dispatch_agent_run", new_callable=AsyncMock),
         patch(f"{_MODULE}.console_events.push_run_event", new_callable=AsyncMock) as mock_push,
+        patch(f"{_MODULE}.JIRA_POLLER_SHADOW_MODE", False),
+        patch(f"{_MODULE}.JIRA_POLLER_PAUSED", False),
     ):
         await jira_poller._tick_step_a(client)
 

@@ -68,17 +68,45 @@ async def test_get_issue_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def test_search_issues_success(monkeypatch: pytest.MonkeyPatch) -> None:
     _configure_credentials(monkeypatch)
-    _patch_client(
+    fake_client = _patch_client(
         monkeypatch,
         httpx.Response(
             200,
-            json={"issues": [{"key": "SSAI-1"}], "total": 1, "startAt": 0},
+            json={"issues": [{"key": "SSAI-1"}]},
         ),
     )
 
     result = await jira.search_issues("project = SSAI AND status = BACKLOG")
 
-    assert result == {"issues": [{"key": "SSAI-1"}], "total": 1, "start_at": 0}
+    assert result == {"issues": [{"key": "SSAI-1"}], "next_page_token": None}
+    call = fake_client.calls[0]
+    assert call["url"].endswith("/rest/api/3/search/jql")
+    assert call["json"] == {"jql": "project = SSAI AND status = BACKLOG", "maxResults": 50}
+
+
+async def test_search_issues_paginates_with_next_page_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_credentials(monkeypatch)
+    fake_client = _patch_client(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"issues": [{"key": "SSAI-2"}], "nextPageToken": "tok-2"},
+        ),
+    )
+
+    result = await jira.search_issues(
+        "project = SSAI", next_page_token="tok-1", max_results=1, fields=["status"]
+    )
+
+    assert result == {"issues": [{"key": "SSAI-2"}], "next_page_token": "tok-2"}
+    assert fake_client.calls[0]["json"] == {
+        "jql": "project = SSAI",
+        "maxResults": 1,
+        "nextPageToken": "tok-1",
+        "fields": ["status"],
+    }
 
 
 async def test_get_comments_success(monkeypatch: pytest.MonkeyPatch) -> None:

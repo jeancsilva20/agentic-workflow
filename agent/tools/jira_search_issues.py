@@ -5,7 +5,7 @@ from ..utils.jira import search_issues
 
 async def jira_search_issues(
     jql: str,
-    start_at: int = 0,
+    next_page_token: str | None = None,
     max_results: int = 50,
     fields: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -13,11 +13,14 @@ async def jira_search_issues(
 
     Args:
         jql: A JQL query string, e.g. "project = SSAI AND status = BACKLOG".
-        start_at: Pagination offset.
+        next_page_token: Opaque pagination token from a previous page
+            (the new /search/jql endpoint paginates by token, not offset).
         max_results: Maximum results to return.
         fields: Optional list of fields to include in each returned issue.
 
     Returns:
-        Dictionary with 'issues', 'total', and 'start_at'.
+        Dictionary with 'issues' and 'next_page_token' (None on the last page).
     """
-    return await search_issues(jql, start_at=start_at, max_results=max_results, fields=fields)
+    return await search_issues(
+        jql, next_page_token=next_page_token, max_results=max_results, fields=fields
+    )

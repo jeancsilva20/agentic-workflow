@@ -32,14 +32,19 @@ async def test_jira_search_issues_delegates_to_client(monkeypatch: pytest.Monkey
     async def fake_search_issues(jql: str, **kwargs: Any) -> dict[str, Any]:
         captured["jql"] = jql
         captured.update(kwargs)
-        return {"issues": [], "total": 0, "start_at": 0}
+        return {"issues": [], "next_page_token": None}
 
     monkeypatch.setattr(jira_search_issues_module, "search_issues", fake_search_issues)
 
     result = await jira_search_issues_module.jira_search_issues("project = SSAI", max_results=10)
 
-    assert result == {"issues": [], "total": 0, "start_at": 0}
-    assert captured == {"jql": "project = SSAI", "start_at": 0, "max_results": 10, "fields": None}
+    assert result == {"issues": [], "next_page_token": None}
+    assert captured == {
+        "jql": "project = SSAI",
+        "next_page_token": None,
+        "max_results": 10,
+        "fields": None,
+    }
 
 
 async def test_jira_get_comments_delegates_to_client(monkeypatch: pytest.MonkeyPatch) -> None:
