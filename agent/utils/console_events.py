@@ -48,3 +48,26 @@ async def push_queue_event(issue_key: str, **extra: Any) -> None:
 async def push_log(message: str) -> None:
     """Append one line to the console's execution log ring buffer."""
     await _push("log", {"message": message})
+
+
+async def push_agent_start(run_id: str, metadata: dict[str, Any]) -> None:
+    """Report an agent execution starting, with its routing decision.
+
+    The console mirrors the agent's telemetry stores from these two events —
+    it cannot read the agent's memory, and the spec keeps it from calling back
+    into the runtime. A dropped push costs the console one row, never a run.
+    """
+    await _push("agent_start", {"run_id": run_id, "metadata": metadata})
+
+
+async def push_agent_finish(
+    run_id: str,
+    status: str | None,
+    metadata: dict[str, Any],
+    usage: dict[str, Any],
+) -> None:
+    """Report an agent execution finishing, with its post-run token/cost totals."""
+    await _push(
+        "agent_finish",
+        {"run_id": run_id, "status": status, "metadata": metadata, "usage": usage},
+    )

@@ -260,13 +260,15 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
                 "jira_human_filed": human_filed,
             },
         )
+        launch_configurable = {"source": "jira", "jira_issue_key": issue_key}
+        launch_metadata = {"jira_issue_key": issue_key, "workflow_phase": "triggered"}
         await dispatch_agent_run(
             thread_id,
             f"Jira issue {issue_key} entered {COLUMN_TRIGGER}. Begin PASSO 1: collect context "
             "(issue, description, acceptance criteria, comments).",
-            {"source": "jira", "jira_issue_key": issue_key},
+            launch_configurable,
             source="jira",
-            metadata={"jira_issue_key": issue_key, "workflow_phase": "triggered"},
+            metadata=launch_metadata,
         )
         launched += 1
         await console_events.push_run_event(issue_key, "launched", human_filed=human_filed)
@@ -328,17 +330,23 @@ async def _tick_step_b(client: Any) -> dict[str, Any]:
         recent = comments_result.get("comments", [])[-5:] if "comments" in comments_result else []
         comment_summary = "\n".join(str(c.get("body", "")) for c in recent) or "(no comments)"
 
+        resume_configurable = {
+            "source": "jira",
+            "jira_issue_key": issue_key,
+            "jira_new_column": current_column,
+        }
+        resume_metadata = {
+            "jira_issue_key": issue_key,
+            "workflow_phase": "resumed",
+            "jira_column": current_column,
+        }
         await dispatch_agent_run(
             thread_id,
             f"Jira issue {issue_key} moved from '{parked_column}' to '{current_column}'. "
             f"Resume the workflow from here. Recent comments:\n{comment_summary}",
-            {"source": "jira", "jira_issue_key": issue_key, "jira_new_column": current_column},
+            resume_configurable,
             source="jira",
-            metadata={
-                "jira_issue_key": issue_key,
-                "workflow_phase": "resumed",
-                "jira_column": current_column,
-            },
+            metadata=resume_metadata,
         )
         await client.threads.update(
             thread_id=thread_id,

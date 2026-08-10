@@ -31,6 +31,10 @@ from langgraph_sdk import get_client
 from langgraph_sdk.client import LangGraphClient
 from langgraph_sdk.schema import Run
 
+from .routing.active_agents import active_agents
+from .routing.telemetry import RunMetadata, build_dispatch_metadata
+from .utils import console_events
+
 logger = logging.getLogger(__name__)
 
 ContentBlocks = str | list[dict[str, Any]]
@@ -126,11 +130,38 @@ async def create_durable_run(
     stream_resumable: bool = True,
     after_seconds: int | float | None = None,
 ) -> Run:
-    """Create a run with Open SWE's durable LangGraph defaults."""
+    """Create a run with Open SWE's durable LangGraph defaults.
+
+    Every run created here is tagged with telemetry (``agent.routing.telemetry``)
+    and registered as active, derived from the run's own two dicts. That is
+    deliberately not the caller's choice: a run that reaches LangSmith untagged
+    cannot be attributed to a card, a role or a model afterwards, and "every
+    dispatch is measured" only holds if the single place that creates runs is
+    the place that measures them. A per-call-site payload would also be free to
+    disagree with the route the graph actually builds.
+    """
     client = client or dispatch_client()
+    run_config = _config_with_prepare_run_id(config, metadata)
+    configurable = run_config.get("configurable") or {}
+    telemetry = build_dispatch_metadata(
+        thread_id,
+        assistant_id,
+        source=source,
+        metadata=run_config.get("metadata"),
+        configurable=configurable,
+        # ``prepare_run_id`` is already generated per dispatch and travels with
+        # the run; reusing it as the telemetry correlation id means the trace
+        # can be found later without inventing a second identifier.
+        dispatch_id=str(configurable.get("prepare_run_id") or ""),
+    )
+    run_config["metadata"] = {
+        **(run_config.get("metadata") or {}),
+        **telemetry.as_metadata(),
+    }
+
     create_kwargs: dict[str, Any] = {
         "input": input,
-        "config": _config_with_prepare_run_id(config, metadata),
+        "config": run_config,
         "multitask_strategy": multitask_strategy,
         "durability": durability,
         "if_not_exists": if_not_exists,
@@ -151,6 +182,7 @@ async def create_durable_run(
         source,
         run.get("run_id") if isinstance(run, dict) else None,
     )
+    await _register_telemetry(run, telemetry)
     return run
 
 
@@ -169,13 +201,34 @@ async def dispatch_agent_run(
     Routes every Slack / Linear / GitHub / dashboard trigger through one
     contract. ``source`` is for logging/metadata only; ``assistant_id`` selects
     the graph (``"agent"`` or ``"reviewer"``).
+
+    Telemetry is attached by ``create_durable_run``, from ``metadata`` and
+    ``configurable`` — so a new trigger is measured without its author having to
+    remember to ask for it.
     """
     return await create_durable_run(
         thread_id,
         assistant_id,
         input={"messages": [{"role": "user", "content": content}]},
         config={"configurable": configurable},
-        metadata=metadata or {},
+        metadata=dict(metadata or {}),
         source=source,
         client=client or dispatch_client(),
     )
+
+
+async def _register_telemetry(run: Run, run_metadata: RunMetadata) -> None:
+    """Track the run as active and report the routing decision.
+
+    Best-effort on purpose: observability is a side channel, and a failure here
+    must not turn a dispatched run into a raised exception at the call site —
+    the run is already created by the time this is reached.
+    """
+    run_id = run.get("run_id") if isinstance(run, dict) else None
+    if not run_id:
+        return
+    try:
+        active_agents.start(str(run_id), run_metadata)
+        await console_events.push_agent_start(str(run_id), run_metadata.as_dict())
+    except Exception:  # noqa: BLE001
+        logger.debug("Telemetry registration failed for run %s (ignored)", run_id, exc_info=True)

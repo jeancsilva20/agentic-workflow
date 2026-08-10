@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import observability
 import runtime_bridge
 from config_store import ConfigValidationError, operational_config
 from flask import Flask, jsonify, render_template, request
@@ -47,6 +48,45 @@ def get_routing_config():
     Read-only by design — routing is automatic, so there is no PUT counterpart.
     """
     return jsonify({"routing": runtime_bridge.routing_table()})
+
+
+@app.get("/api/observability/live")
+def get_observability_live():
+    """Agent executions running right now, from the pushed run registry.
+
+    No LangSmith call: an in-flight run has no usage to read yet, and putting an
+    external API on a page refresh would make the console's latency someone
+    else's problem.
+    """
+    return jsonify(observability.live())
+
+
+@app.get("/api/observability/routing")
+def get_observability_routing():
+    """The routing table — the same answer as ``/api/config/routing``."""
+    return jsonify({"routing": runtime_bridge.routing_table()})
+
+
+@app.get("/api/observability/usage")
+def get_observability_usage():
+    """Today's tokens and cost across every card, model and role."""
+    return jsonify(observability.today_usage())
+
+
+@app.get("/api/observability/cards/<jira_issue_key>/usage")
+def get_card_usage(jira_issue_key: str):
+    """One card's total, aggregated over every thread and run it spans.
+
+    A card with no runs in the window reports zero runs rather than 404: this
+    is a bounded cache of recent runs, so "not here" is not "never ran".
+    """
+    return jsonify(observability.card_usage(jira_issue_key))
+
+
+@app.get("/api/observability/cards/<jira_issue_key>/timeline")
+def get_card_timeline(jira_issue_key: str):
+    """One card's runs in order, each with role, model, effort, tokens and cost."""
+    return jsonify(observability.card_timeline(jira_issue_key))
 
 
 @app.put("/api/config")
@@ -119,6 +159,15 @@ def post_event(kind: str):
         store.record_queue_event(issue_key, **extra)
     elif kind == "log":
         store.record_log(payload.get("message", ""))
+    elif kind in ("agent_start", "agent_finish"):
+        ingest = (
+            observability.record_start if kind == "agent_start" else observability.record_finish
+        )
+        lines, error = ingest(payload)
+        if error:
+            return jsonify({"error": error}), 400
+        for line in lines:
+            store.record_log(line)
     else:
         return jsonify({"error": f"unknown event kind: {kind}"}), 404
 

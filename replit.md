@@ -66,7 +66,8 @@ Existe um `agent-console/` na raiz do repositório pai que é um protótipo anti
 - ✅ Fluxo alinhado ao fluxo alvo de 11 estados — ver `docs/RELATORIO_AJUSTE_FLUXO_JIRA.md` (JQL do Step B cobre os pós-gate, shadow mode cobre os dois steps, archive+docs antes de `Em Merge`, `Ajustar Code` busca reviews no GitHub)
 - ❌ Nunca validado com LLM real processando um card pelos 11 PASSOs
 - ❌ Fluxo de PR real nunca testado
-- ❌ Métricas LangSmith incompletas (tasks.md §10.1)
+- ✅ Telemetria LangSmith por card (`agent/routing/telemetry.py`, `pricing.py`, `usage_store.py`, `active_agents.py`) — toda execução leva metadata padronizada (card, thread, papel, etapa, modelo, effort, complexidade, motivo da rota); tokens e custo são lidos **depois** que o run termina e agregados por `jira_issue_key` somando todas as threads; custo desconhecido fica `null`, nunca `0.0`; console expõe em `GET /api/observability/{live,routing,usage,cards/<key>/usage,cards/<key>/timeline}`
+- ❌ UI de observabilidade no console ainda não existe (só a API)
 - ✅ Config operacional em runtime pelo console (`shadow_mode`, `polling_interval_minutes`) — persistida em `agent-console/data/operational_config.json`, sem restart; env vars viraram apenas o default
 - ✅ Model Router automático por papel de agente (`agent/routing`) — modelo e effort deixaram de ser configuráveis (nem console, nem perfil, nem por thread); o papel de cada execução vem da coluna Jira em que o poller retomou o card (`agent/routing/phases.py`); tabela exposta em `GET /api/config/routing`, com `active`/`selected_by` por papel
 - ❌ Botão de pausa (`JIRA_POLLER_PAUSED`) no console web não existe (só env var)

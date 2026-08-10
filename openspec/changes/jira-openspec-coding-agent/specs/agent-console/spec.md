@@ -67,6 +67,28 @@ The console SHALL display a rolling log of agent and poller events with timestam
 - **WHEN** more events arrive than the buffer holds
 - **THEN** the oldest are evicted and the console keeps serving without error
 
+### Requirement: Console reports token and cost usage per card
+Every agent run SHALL carry standardized trace metadata (Jira issue key, thread, agent role, workflow stage, model, effort, routing mode, complexity tier, routing reason). The console SHALL expose, per card, the total tokens and cost of every run the card spans and an ordered timeline of those runs. Usage SHALL be collected after a run completes, never per token.
+
+#### Scenario: One card spans several runs
+- **WHEN** a card is worked on across several human-in-the-loop runs on different threads
+- **THEN** its usage is reported as one total, aggregated by issue key across all of them, and broken down by model and by agent role
+
+#### Scenario: Cost is unknown
+- **WHEN** the tracing backend reports no cost and the model is absent from the fallback pricing table
+- **THEN** the cost is reported as unknown, never as zero, and the number of runs missing a cost is reported alongside the total
+
+#### Scenario: Routing decision recorded
+- **WHEN** a run is dispatched, escalated, or completes
+- **THEN** one execution-log line is written for the routing decision, one for the run's token total, and one for the card's updated cost
+
+### Requirement: Console never exposes tracing credentials
+No console endpoint SHALL return the tracing backend's API key or any other credential. The console SHALL NOT hold a tracing credential at all: it is fed usage by pushed events, and only the agent process talks to the tracing backend.
+
+#### Scenario: Observability endpoint is read
+- **WHEN** any observability endpoint is called
+- **THEN** the response contains usage and routing data only, with no credential or backend endpoint in it
+
 ### Requirement: Console cannot affect the workflow
 The console SHALL be a read-only display fed by events pushed to it. It SHALL NOT call Jira, LangGraph, or the agent, and a console failure SHALL NOT affect any run.
 

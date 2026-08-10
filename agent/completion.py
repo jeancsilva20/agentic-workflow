@@ -21,6 +21,7 @@ from typing import Any
 
 from .review.findings import REVIEWER_THREAD_KIND
 from .review.publish import settle_review_check_run
+from .routing.usage_collection import record_run_completion
 from .utils.dashboard_links import dashboard_thread_url
 from .utils.github_app import get_github_app_installation_token
 from .utils.github_comments import post_github_comment
@@ -204,6 +205,16 @@ async def handle_run_completion(payload: dict[str, Any]) -> dict[str, str]:
     run_id = raw_run_id if isinstance(raw_run_id, str) and raw_run_id else None
     if not isinstance(thread_id, str) or not thread_id:
         return {"status": "ignored", "reason": "missing thread_id"}
+
+    # Telemetry runs for *every* completion, not just failures: a successful run
+    # is exactly the one whose tokens and cost we care about, and this webhook is
+    # the only place that hears about it. Best-effort — an observability problem
+    # must not turn into a failed webhook.
+    try:
+        await record_run_completion(run_id, thread_id, status if isinstance(status, str) else None)
+    except Exception:  # noqa: BLE001
+        logger.warning("run-complete: usage collection failed for run %s", run_id, exc_info=True)
+
     if status not in _TERMINAL_FAILURE_STATUSES:
         return {"status": "ignored", "reason": f"non-failure status: {status}"}
 

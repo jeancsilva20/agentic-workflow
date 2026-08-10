@@ -88,7 +88,13 @@ from .middleware.prepare_run import PrepareRunState
 from .middleware.sandbox_circuit_breaker import post_sandbox_unreachable_notification
 from .prompt import OPEN_SWE_SHARED_BASE, construct_system_prompt
 from .routing import AgentRole, resolve_model
-from .routing.phases import DEFAULT_DISPATCH_ROLE, role_for_column
+from .routing.dispatch_route import (
+    ROUTING_SIGNALS_KEY as ROUTING_SIGNALS_KEY,
+)
+from .routing.dispatch_route import (
+    dispatch_role,
+    routing_signals,
+)
 from .runtime.constants import (
     DEFAULT_LLM_MAX_TOKENS,
     DEFAULT_RECURSION_LIMIT,
@@ -790,58 +796,18 @@ def _make_model_or_defer(
         return make_deferred_error_model(e, model_id=model_id)
 
 
-# `log_review_cycle` records the highest self-review pass per phase on the
-# thread. The first pass is not a retry — it is the review every change gets —
-# so only the passes after it count as work coming back.
-_REVIEW_CYCLE_METADATA_KEYS = ("jira_review_cycles_code", "jira_review_cycles_spec")
-
-# Anything the workflow learns about a change (files touched, whether it moves
-# a migration or touches auth) is written here, on the thread, rather than
-# passed per run: the router is called on every graph build, including resumes
-# that carry no such context of their own.
-ROUTING_SIGNALS_KEY = "routing_signals"
-
-
-def _positive_int(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        return 0
-    return max(0, value)
-
-
 def _dispatch_role(config: RunnableConfig, configurable: dict[str, Any]) -> AgentRole:
     """Which phase of the workflow this run has to cover.
 
-    The poller says which column it resumed the card from; that column is the
-    instruction the run follows, so it is also what decides the route. A run
-    with no column — dashboard, Slack, Linear, a PR comment — is coding work.
+    Shared with the dispatcher (``agent.routing.dispatch_route``) so the route a
+    run is *tagged* with at dispatch is the route it is *built* with here.
     """
-    metadata = as_json_object(config.get("metadata"))
-    for source in (configurable.get("jira_new_column"), metadata.get("jira_column")):
-        role = role_for_column(source if isinstance(source, str) else None)
-        if role is not None:
-            return role
-    return DEFAULT_DISPATCH_ROLE
+    return dispatch_role(config.get("metadata"), configurable)
 
 
 def _routing_signals(config: RunnableConfig, configurable: dict[str, Any]) -> dict[str, Any]:
-    """Complexity signals for this thread, for :func:`resolve_model`.
-
-    Explicit signals win over derived ones: a caller that already knows the
-    change touches auth should not have that overwritten by a counter.
-    """
-    metadata = as_json_object(config.get("metadata"))
-    signals: dict[str, Any] = {
-        **as_json_object(metadata.get(ROUTING_SIGNALS_KEY)),
-        **as_json_object(configurable.get(ROUTING_SIGNALS_KEY)),
-    }
-
-    review_cycles = max(
-        (_positive_int(metadata.get(key)) for key in _REVIEW_CYCLE_METADATA_KEYS), default=0
-    )
-    returns = max(0, review_cycles - 1)
-    signals.setdefault("retry_count", returns)
-    signals.setdefault("review_return_count", returns)
-    return signals
+    """Complexity signals for this thread, for :func:`resolve_model`."""
+    return routing_signals(config.get("metadata"), configurable)
 
 
 class PrepareAgentRunMiddleware(BasePrepareRunMiddleware):

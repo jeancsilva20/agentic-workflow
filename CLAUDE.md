@@ -130,6 +130,15 @@ There is no override: not per thread, not per profile, not per team, not from th
 console. Dashboard profile model fields still exist for display, but they no longer
 steer a run.
 
+Every dispatched run carries that decision into LangSmith as trace metadata
+(`agent/routing/telemetry.py`): card, thread, role, workflow stage, model, effort,
+complexity tier, routing reason. Tokens and cost are read back from the completed
+run — after it finishes, never per token — and aggregated per Jira card across all
+of its threads (`agent/routing/usage_store.py`), with `agent/routing/pricing.py` as
+the cost fallback when LangSmith reports none. An unpriceable run reports `null`,
+not `0.0`. The console mirrors the same stores from two pushed events and serves
+them at `GET /api/observability/…`; it never calls LangSmith itself.
+
 Supported model IDs and per-model effort/reasoning rules live in `agent/dashboard/options.py`. Profile flags also drive run behavior — e.g. `profile_create_prs` enables the opt-in Always Create PRs policy. Model construction goes through `agent/utils/model.py` (`make_model`, `provider_model_kwargs`, `fallback_model_id_for`).
 
 ### Auth
