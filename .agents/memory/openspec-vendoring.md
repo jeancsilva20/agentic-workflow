@@ -35,6 +35,11 @@ Nada no runtime impede o agente de pular a spec. As regras vivem no `AGENTS.md` 
 Gates") e no system prompt, e são condicionadas ao passo ter dado certo de verdade (artefatos
 commitados **e** empurrados; verificação sem CRITICAL aberto; archive concluído e empurrado).
 
+Como o contrato é texto, a suíte de contrato SDD assere o texto: cabeçalhos das seções de gate,
+a formulação negativa, os nomes das skills e as chaves do config. Mexer na redação de um gate ou
+renomear uma seção quebra esses testes de propósito — eles são a única coisa que percebe que uma
+trava sumiu. Ao reformular, atualize a assertiva junto, nunca afrouxe para "passar".
+
 **How to apply:** ao mexer nesses textos, manter a formulação negativa ("MUST NOT call
 `jira_park_at_gate` para X até Y") — ela é o que dá para checar depois lendo o log do run. A
 observabilidade dos quatro checkpoints do ciclo (versão carregada, proposta gerada, verificação

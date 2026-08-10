@@ -33,6 +33,22 @@ def test_reviewer_system_prompt_formats_without_keyerror() -> None:
     assert "gh api repos/" not in prompt
 
 
+def test_reviewer_prompt_asserts_independence_from_the_coding_agent() -> None:
+    """Two runs of the same model agreeing with each other is not a review: the
+    prompt has to say the author's self-assessment is a claim to verify, and
+    point at the Python review skill served on the static route."""
+    prompt = reviewer._reviewer_system_prompt(
+        "/workspace/repo",
+        repo_owner="acme",
+        repo_name="repo",
+        pr_number=42,
+    )
+
+    assert "separate agent from the one that wrote this code" in prompt
+    assert "/openspec-skills/python-review/SKILL.md" in prompt
+    assert "start_line`/`end_line" in prompt
+
+
 def test_reviewer_eval_prompt_omits_historical_and_benchmark_gaming() -> None:
     prompt = reviewer._reviewer_system_prompt(
         "/workspace/repo",

@@ -252,6 +252,31 @@ Rules that hold across all phases:
 - Every one of them defers to the Harness Report for commands and to the target repository's
   existing conventions for style. A skill never overrides what the repo already does.
 
+## Reviewer Independence
+
+The `reviewer` graph is a **separate agent from the coding agent**, and the separation is the
+point: two runs of the same model agreeing with each other is not a review. The rules:
+
+- The reviewer performs **fresh analysis on the PR diff**. It reads the diff (via
+  `fetch_review_diff`) and the code the diff touches, and derives its own conclusions from
+  them.
+- The coding agent's self-assessment is **untrusted input**, not a finding of fact. The PR
+  description, the commit messages, the author trace and any self-review comment are claims to
+  verify. "The author says it is tested" is not a test; "the author says no schema changed" is
+  not a schema check. The reviewer never reproduces or endorses those conclusions as its own.
+- **The reviewer's findings supersede the coding agent's self-assessment.** When the two
+  disagree, the review is what stands, and the coding agent fixes the code rather than arguing
+  the summary.
+- Findings are **anchored inline**: `add_finding` with `file` + `start_line`/`end_line` inside
+  the diff, so `publish_review` posts a comment on the offending line. A top-level summary
+  alone is not a review.
+- On a Python diff the reviewer loads `agent/skills/python-review/SKILL.md` (served on the
+  `/openspec-skills/` route, same as the coding agent's skills) and works its seven passes:
+  Correctness, Python, FastAPI, Database, Security, Tests, OpenSpec adherence. The OpenSpec
+  pass is what keeps the SDD contract honest at review time — implemented behaviour must trace
+  to a requirement, `design.md` decisions are binding, and a `- [x]` in `tasks.md` whose work
+  is not in the diff is a finding.
+
 <!-- OPENWIKI:START -->
 
 ## OpenWiki

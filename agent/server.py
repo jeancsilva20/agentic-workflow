@@ -13,7 +13,6 @@ import os
 import warnings
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
-from importlib import resources
 from typing import Any, Literal, cast
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,6 @@ warnings.filterwarnings("ignore", message=".*Pydantic V1.*", category=UserWarnin
 from deepagents import create_deep_agent
 from deepagents.backends import LangSmithSandbox
 from deepagents.backends.composite import CompositeBackend
-from deepagents.backends.filesystem import FilesystemBackend
 from deepagents.backends.protocol import BackendProtocol, SandboxBackendProtocol
 from deepagents.backends.store import StoreBackend
 from deepagents.middleware.subagents import GENERAL_PURPOSE_SUBAGENT, SubAgent
@@ -180,6 +178,7 @@ from .utils.sandbox_state import (
     set_sandbox_backend,
     unwrap_sandbox_backend,
 )
+from .utils.static_skills import STATIC_SKILLS_ROUTE, make_static_skills_backend
 from .utils.tracing import AGENT_TRACING_PROJECT, traced_graph_factory
 from .utils.turn_checkpoint import merge_checkpoint, record_turn_checkpoint
 
@@ -187,10 +186,6 @@ client = get_client()
 
 DEFAULT_TOOL_LOADER_TIMEOUT_SECONDS = 5.0
 USER_SKILLS_ROUTE = "/skills/"
-# Repo-shipped skills (openspec-explore, openspec-propose) served read-only
-# from the package's own agent/skills/ directory — always on, unlike the
-# per-user route below which only applies when profile_login is set.
-STATIC_SKILLS_ROUTE = "/openspec-skills/"
 DEEP_AGENT_TOOL_NAMES = {
     "delete",
     "edit_file",
@@ -1200,10 +1195,7 @@ async def get_agent(config: RunnableConfig) -> Pregel:
         )
 
     logger.info("Returning agent with sandbox for thread %s", thread_id)
-    static_skills_backend = ReadOnlyBackend(
-        FilesystemBackend(root_dir=str(resources.files("agent.skills")), virtual_mode=True)
-    )
-    skill_routes: dict[str, Any] = {STATIC_SKILLS_ROUTE: static_skills_backend}
+    skill_routes: dict[str, Any] = {STATIC_SKILLS_ROUTE: make_static_skills_backend()}
     skill_sources: list[str] = [STATIC_SKILLS_ROUTE]
     if profile_login:
         skill_routes[USER_SKILLS_ROUTE] = ReadOnlyBackend(
