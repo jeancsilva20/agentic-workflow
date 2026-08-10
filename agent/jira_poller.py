@@ -20,7 +20,15 @@ from typing import Any
 
 from langgraph_sdk import get_client
 
+from . import operational_config
 from .dispatch import dispatch_agent_run
+from .poller_cron import (
+    cron_id_of,
+    cron_schedule_for_minutes,
+    cron_schedule_of,
+    list_poller_crons,
+    reconfigure_poller_cron,
+)
 from .utils import console_events
 from .utils.jira import generate_thread_id_from_jira_issue, get_comments, search_issues
 
@@ -80,7 +88,9 @@ JIRA_TRIGGER_JQL_FILTER = os.environ.get("JIRA_TRIGGER_JQL_FILTER", "")
 # real label the FA Alert integration uses isn't fixed by this codebase.
 JIRA_FA_ALERT_LABEL = os.environ.get("JIRA_FA_ALERT_LABEL", "fa-alert").lower()
 
-# Task 5.11 — observe what would trigger without launching anything.
+# Task 5.11 — observe what would trigger without launching anything. This is
+# only the *default*: the agent console can override it at runtime, so read the
+# effective value through `is_shadow_mode()` rather than this constant.
 JIRA_POLLER_SHADOW_MODE = os.environ.get("JIRA_POLLER_SHADOW_MODE", "").strip().lower() in (
     "1",
     "true",
@@ -95,8 +105,6 @@ JIRA_POLLER_PAUSED = os.environ.get("JIRA_POLLER_PAUSED", "").strip().lower() in
     "yes",
 )
 
-_POLLER_CRON_METADATA = {"kind": "jira_poller"}
-
 # Page size per Jira search request, and the ceiling on how many pages a single
 # tick will walk. The cap only exists so a misconfigured project key or an
 # unexpectedly huge board can't make one tick run forever; hitting it is logged
@@ -109,6 +117,26 @@ def _langgraph_url() -> str:
     return os.environ.get("LANGGRAPH_URL") or os.environ.get(
         "LANGGRAPH_URL_PROD", "http://localhost:2024"
     )
+
+
+def is_shadow_mode() -> bool:
+    """Whether this tick may only observe, read at tick time, not import time.
+
+    The agent console writes the operator's choice to a file both processes
+    share (``agent.operational_config``), so flipping shadow mode takes effect
+    on the next tick without restarting the LangGraph server. With no console
+    override the environment default (`JIRA_POLLER_SHADOW_MODE`) still governs.
+    """
+    override = operational_config.shadow_mode_override()
+    return JIRA_POLLER_SHADOW_MODE if override is None else override
+
+
+def configured_poll_interval_minutes() -> int:
+    """Effective tick interval in whole minutes: console override, else env."""
+    override = operational_config.polling_interval_minutes_override()
+    if override is not None:
+        return override
+    return max(1, JIRA_POLL_INTERVAL_SECONDS // 60)
 
 
 def _trigger_jql() -> str:
@@ -211,7 +239,7 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
             continue
 
         human_filed = not _is_fa_alert_card(issue)
-        if JIRA_POLLER_SHADOW_MODE:
+        if is_shadow_mode():
             logger.info(
                 "Jira poller [shadow]: would launch thread for %s (human_filed=%s)",
                 issue_key,
@@ -278,7 +306,7 @@ async def _tick_step_b(client: Any) -> dict[str, Any]:
             unchanged += 1
             continue
 
-        if JIRA_POLLER_SHADOW_MODE:
+        if is_shadow_mode():
             # Shadow mode's guarantee is "no real action" — that has to cover
             # resumes too, not just fresh launches.
             logger.info(
@@ -337,35 +365,44 @@ async def tick() -> dict[str, Any]:
 
 
 async def ensure_jira_poller_cron() -> str | None:
-    """Idempotently register the recurring poller cron on the `scheduler` graph.
+    """Register the recurring poller cron on the `scheduler` graph, reconciling.
 
     LangGraph crons have minute granularity — `JIRA_POLL_INTERVAL_SECONDS`
     below 120 collapses to "every minute" (the default 60s maps exactly to
-    that); values are rounded down to whole minutes above that.
+    that); values are rounded down to whole minutes above that. An interval the
+    operator picked in the console outranks the env var, so a restart keeps the
+    interval they chose instead of silently reverting to the deployment default.
+
+    "A cron exists" is therefore not good enough to return early: the console
+    can save an interval whose push to this server failed, and a stale cron
+    left at the old schedule would make that saved value a lie forever. So the
+    existing cron is compared against the configured one and replaced when it
+    disagrees — which also makes a restart the documented recovery path for a
+    failed reconfiguration.
     """
     client = get_client(url=_langgraph_url())
+    schedule = cron_schedule_for_minutes(configured_poll_interval_minutes())
     try:
-        existing = await client.crons.search(metadata=_POLLER_CRON_METADATA, limit=1)
+        existing = await list_poller_crons(client)
     except Exception:  # noqa: BLE001
         logger.exception("Failed to search for an existing Jira poller cron")
         return None
-    if existing:
-        first = existing[0]
-        return first.get("cron_id") if isinstance(first, dict) else getattr(first, "cron_id", None)
 
-    minutes = max(1, JIRA_POLL_INTERVAL_SECONDS // 60)
-    schedule = "* * * * *" if minutes <= 1 else f"*/{minutes} * * * *"
-    try:
-        cron = await client.crons.create(
-            "scheduler",
-            schedule=schedule,
-            input={"task": "jira_poll"},
-            metadata=_POLLER_CRON_METADATA,
+    if len(existing) == 1 and cron_schedule_of(existing[0]) == schedule:
+        return cron_id_of(existing[0])
+
+    if existing:
+        logger.info(
+            "Reconciling %d Jira poller cron(s) to the configured schedule %s",
+            len(existing),
+            schedule,
         )
+
+    try:
+        return await reconfigure_poller_cron(configured_poll_interval_minutes(), client=client)
     except Exception:  # noqa: BLE001
-        logger.exception("Failed to create the Jira poller cron")
+        logger.exception("Failed to install the Jira poller cron at schedule %s", schedule)
         return None
-    return cron.get("cron_id") if isinstance(cron, dict) else getattr(cron, "cron_id", None)
 
 
 async def ensure_jira_poller_cron_with_retry(

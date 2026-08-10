@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -34,10 +36,11 @@ def _issue(key: str, status: str, labels: list[str] | None = None) -> dict[str, 
 def _flags_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin both poller brakes off.
 
-    They are module constants read from the environment at import time, so a
-    deployment env with `JIRA_POLLER_SHADOW_MODE=1` set would otherwise make
-    every "does it launch/resume?" test assert the opposite of its name.
-    Tests that want a brake on re-patch it themselves.
+    They default to environment variables read at import time, so a deployment
+    env with `JIRA_POLLER_SHADOW_MODE=1` set would otherwise make every "does
+    it launch/resume?" test assert the opposite of its name. Shadow mode's
+    other source — the file the agent console writes — is neutralised suite-wide
+    in `tests/conftest.py`. Tests that want a brake on re-patch it themselves.
     """
     monkeypatch.setattr(jira_poller, "JIRA_POLLER_SHADOW_MODE", False)
     monkeypatch.setattr(jira_poller, "JIRA_POLLER_PAUSED", False)
@@ -433,15 +436,64 @@ async def test_tick_runs_both_steps_and_pushes_tick_event() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ensure_cron_returns_existing_cron_id() -> None:
+async def test_ensure_cron_keeps_an_existing_cron_on_the_configured_schedule() -> None:
     client = MagicMock()
-    client.crons.search = AsyncMock(return_value=[{"cron_id": "existing-id"}])
+    client.crons.search = AsyncMock(
+        return_value=[{"cron_id": "existing-id", "schedule": "* * * * *"}]
+    )
     client.crons.create = AsyncMock()
+    client.crons.delete = AsyncMock()
     with patch(f"{_MODULE}.get_client", return_value=client):
         cron_id = await jira_poller.ensure_jira_poller_cron()
 
     assert cron_id == "existing-id"
     client.crons.create.assert_not_called()
+    client.crons.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_cron_replaces_a_cron_left_on_a_stale_schedule(tmp_path) -> None:
+    """Startup is the recovery path for a console change the server never took.
+
+    The operator saved 30 minutes, the push to this server failed, and the old
+    every-minute cron stayed behind. Returning it unchanged would leave the
+    saved interval permanently untrue.
+    """
+    config_file = tmp_path / "operational_config.json"
+    config_file.write_text(json.dumps({"polling_interval_minutes": 30}), encoding="utf-8")
+
+    client = MagicMock()
+    client.crons.search = AsyncMock(return_value=[{"cron_id": "stale-id", "schedule": "* * * * *"}])
+    client.crons.delete = AsyncMock()
+    client.crons.create = AsyncMock(return_value={"cron_id": "fresh-id"})
+    with (
+        patch.dict(os.environ, {"OPERATIONAL_CONFIG_PATH": str(config_file)}),
+        patch(f"{_MODULE}.get_client", return_value=client),
+    ):
+        cron_id = await jira_poller.ensure_jira_poller_cron()
+
+    assert cron_id == "fresh-id"
+    client.crons.delete.assert_awaited_once_with("stale-id")
+    assert client.crons.create.await_args.kwargs["schedule"] == "*/30 * * * *"
+
+
+@pytest.mark.asyncio
+async def test_ensure_cron_collapses_duplicate_crons_to_one() -> None:
+    client = MagicMock()
+    client.crons.search = AsyncMock(
+        return_value=[
+            {"cron_id": "one", "schedule": "* * * * *"},
+            {"cron_id": "two", "schedule": "* * * * *"},
+        ]
+    )
+    client.crons.delete = AsyncMock()
+    client.crons.create = AsyncMock(return_value={"cron_id": "only"})
+    with patch(f"{_MODULE}.get_client", return_value=client):
+        cron_id = await jira_poller.ensure_jira_poller_cron()
+
+    assert cron_id == "only"
+    assert [call.args[0] for call in client.crons.delete.await_args_list] == ["one", "two"]
+    client.crons.create.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -788,7 +788,10 @@ ignore = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+# The console is a standalone app with its own directory-local imports, but its
+# backend now controls the agent's runtime config — its tests belong in the
+# default run rather than only when someone points pytest at that directory.
+testpaths = ["tests", "agent-console/tests"]
 
 [tool.basedpyright]
 venvPath = "."

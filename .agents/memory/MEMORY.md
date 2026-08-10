@@ -1,2 +1,3 @@
 - [Open SWE Jira context](open-swe-context.md) — projeto Open SWE estendido para Jira; ler instruções replit.md e design.md antes de qualquer mudança
 - [Regras do fluxo Jira](jira-flow-rules.md) — quem move cada card, por que o JQL de resume cobre os pós-gate, archive/docs antes do merge, armadilha do shadow mode em teste
+- [Config operacional em runtime](console-runtime-config.md) — console escreve arquivo/poller lê no tick, loop asyncio único, um cron só, falha de efeito colateral vira warning

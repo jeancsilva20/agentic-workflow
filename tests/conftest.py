@@ -8,6 +8,19 @@ from agent.webhooks import common as webhook_common
 
 
 @pytest.fixture(autouse=True)
+def _no_console_operational_config(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Hide the agent console's runtime config from the suite.
+
+    Shadow mode and the polling interval are read at call time from the file
+    the console writes, which outranks the environment variable. A developer
+    who left the console in shadow mode would otherwise flip the meaning of
+    every launch/resume assertion in the poller tests. A test that wants a
+    console-applied value writes its own file and points this variable at it.
+    """
+    monkeypatch.setenv("OPERATIONAL_CONFIG_PATH", str(tmp_path / "no_console_config.json"))
+
+
+@pytest.fixture(autouse=True)
 def _default_enable_auto_review(monkeypatch: pytest.MonkeyPatch) -> None:
     """Treat automatic reviews as enabled for every repo by default.
 

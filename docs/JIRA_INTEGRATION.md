@@ -39,11 +39,11 @@ Poller and column configuration (all optional, defaults shown):
 | Variable | Default | Purpose |
 |---|---|---|
 | `JIRA_PROJECT_KEY` | `SSAI` | The Jira project the poller queries. Both steps of the tick page through the *whole* result set (`nextPageToken`), not just the first 50 hits — a per-tick page cap guards against a runaway query, and hitting it is logged as a warning meaning some cards went unpolled |
-| `JIRA_POLL_INTERVAL_SECONDS` | `60` | Poller tick interval. LangGraph crons have minute granularity — values under 120 collapse to "every minute"; others round down to whole minutes |
+| `JIRA_POLL_INTERVAL_SECONDS` | `60` | Poller tick interval. LangGraph crons have minute granularity — values under 120 collapse to "every minute"; others round down to whole minutes. Only the *default*: once an interval has been picked in the agent console (`PUT /api/config`), that choice wins, including after a restart |
 | `JIRA_COLUMN_*` | see the board table above | Override any of the 11 column names. Read by both the poller (which queries the trigger column, the 3 gate columns, and the 5 post-gate columns a human moves a parked card to) and the system prompt (all 11) — override consistently, both sides pick up the same env var |
 | `JIRA_TRIGGER_JQL_FILTER` | unset | Extra JQL AND-ed onto the trigger query (e.g. `issuetype = Bug`) — the Decision 11 mitigation if `BACKLOG`-as-trigger gets noisy. Off by default |
 | `JIRA_FA_ALERT_LABEL` | `fa-alert` | Best-effort label used only to split human- vs. automation-filed cards in shadow-mode/volume logging — this is a guess; confirm the real label your monitoring integration uses |
-| `JIRA_POLLER_SHADOW_MODE` | unset (off) | `1`/`true`/`yes` to log what the poller *would* do without taking any real action — this covers **both** steps of the tick: no new thread is launched for a `BACKLOG` card, and no parked thread is resumed when a human moves a card out of a gate |
+| `JIRA_POLLER_SHADOW_MODE` | unset (off) | `1`/`true`/`yes` to log what the poller *would* do without taking any real action — this covers **both** steps of the tick: no new thread is launched for a `BACKLOG` card, and no parked thread is resumed when a human moves a card out of a gate. Only the *default*: the agent console can flip shadow mode at runtime (`PUT /api/config`) and the next tick honours it without a restart |
 | `JIRA_POLLER_PAUSED` | unset (off) | `1`/`true`/`yes` to stop new/resumed launches without tearing down the tick itself — the fast manual brake |
 
 Agent console (optional; see `agent-console/README.md` for the console's own setup):

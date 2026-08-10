@@ -13,7 +13,7 @@ Este é o **Open SWE** (framework open-source de coding agent em LangGraph + Dee
 
 ### Componentes
 - **`agent/`** — LangGraph app principal (3 graphs: `agent`, `reviewer`, `analyzer`) + FastAPI (`agent/webapp.py`)
-- **`agent-console/`** — console web Flask separado que exibe saúde do poller, fila e runs
+- **`agent-console/`** — console web Flask separado que exibe saúde do poller, fila e runs, e controla a config operacional em runtime (shadow mode, modelo, effort, intervalo de polling) via `GET`/`PUT /api/config`
 - **`ui/`** — dashboard TanStack Start + Vite (login GitHub, settings, chat UI)
 - **`desktop/`** — wrapper Electron experimental (não é o foco)
 - **`openspec/`** — config da change + toda a documentação de decisão do projeto Jira
@@ -67,7 +67,9 @@ Existe um `agent-console/` na raiz do repositório pai que é um protótipo anti
 - ❌ Nunca validado com LLM real processando um card pelos 11 PASSOs
 - ❌ Fluxo de PR real nunca testado
 - ❌ Métricas LangSmith incompletas (tasks.md §10.1)
-- ❌ Botão de pausa no console web não existe (só env var)
+- ✅ Config operacional em runtime pelo console (`shadow_mode`, `model`, `effort`, `polling_interval_minutes`) — persistida em `agent-console/data/operational_config.json`, sem restart; env vars viraram apenas o default
+- ❌ Botão de pausa (`JIRA_POLLER_PAUSED`) no console web não existe (só env var)
+- ❌ Painel de config ainda é só API — a UI do console não expõe os controles
 
 ## User preferences
 

@@ -1,6 +1,7 @@
-"""Agent console: a small read-only Flask page reporting whether the Jira
-poller is alive, the card queue, active/parked/dead runs, and a live
-execution log (design.md / proposal.md).
+"""Agent console: a small Flask page reporting whether the Jira poller is
+alive, the card queue, active/parked/dead runs, and a live execution log
+(design.md / proposal.md), plus the operational configuration an operator can
+change at runtime (`/api/config` — shadow mode, model, effort, poll interval).
 
 Run with:
     pip install -r agent-console/requirements.txt
@@ -13,7 +14,10 @@ Point the agent at it (agent/utils/console_events.py) via:
 from __future__ import annotations
 
 import os
+from typing import Any
 
+import runtime_bridge
+from config_store import ConfigValidationError, operational_config
 from flask import Flask, jsonify, render_template, request
 from store import store
 
@@ -28,6 +32,62 @@ def index():
 @app.get("/api/state")
 def get_state():
     return jsonify(store.status())
+
+
+@app.get("/api/config")
+def get_config():
+    return jsonify({**operational_config.get(), **operational_config.options()})
+
+
+@app.put("/api/config")
+def put_config():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "a JSON object body is required"}), 400
+
+    # One lock over "save" and "apply": concurrent PUTs must not end up with the
+    # file on one operator's choice and the runtime on the other's.
+    with operational_config.transaction():
+        try:
+            applied, changes = operational_config.update(payload)
+        except ConfigValidationError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        warnings = _apply_to_runtime(applied, changes)
+
+    return jsonify({**applied, **operational_config.options(), "warnings": warnings})
+
+
+def _apply_to_runtime(applied: dict[str, Any], changes: list[tuple[str, Any, Any]]) -> list[str]:
+    """Push each changed field to the runtime, logging what changed either way.
+
+    Persisting is not applying: the poller picks shadow mode up from the shared
+    config file on its next tick, but the cron and the team-default model live
+    on the LangGraph server and can fail independently. Those failures come back
+    as warnings — the value is saved, the runtime just hasn't taken it yet.
+    """
+    for field, old, new in changes:
+        store.record_log(_change_message(field, old, new))
+
+    changed = {field for field, _old, _new in changes}
+    warnings: list[str] = []
+    if "polling_interval_minutes" in changed:
+        warnings.append(runtime_bridge.apply_polling_interval(applied["polling_interval_minutes"]))
+    if changed & {"model", "effort"}:
+        warnings.append(runtime_bridge.apply_model_effort(applied["model"], applied["effort"]))
+
+    warnings = [warning for warning in warnings if warning]
+    for warning in warnings:
+        store.record_log(f"config: {warning}")
+    return warnings
+
+
+def _change_message(field: str, old: Any, new: Any) -> str:
+    if field == "shadow_mode":
+        return f"config: shadow mode {'enabled' if new else 'disabled'}"
+    if field == "polling_interval_minutes":
+        return f"config: polling interval changed from {old}m to {new}m"
+    return f"config: {field} changed from {old} to {new}"
 
 
 @app.post("/api/events/<kind>")
