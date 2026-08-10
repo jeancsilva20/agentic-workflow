@@ -2,6 +2,10 @@
   "name": "open-swe",
   "private": true,
   "scripts": {
-    "dev:mock": "bash tests/e2e/dev-mock.sh"
+    "dev:mock": "bash tests/e2e/dev-mock.sh",
+    "test:frontend": "node --test \"agent-console/tests/frontend/*.test.mjs\""
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
   }
 }

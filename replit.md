@@ -69,7 +69,8 @@ Existe um `agent-console/` na raiz do repositório pai que é um protótipo anti
 - ❌ Métricas LangSmith incompletas (tasks.md §10.1)
 - ✅ Config operacional em runtime pelo console (`shadow_mode`, `model`, `effort`, `polling_interval_minutes`) — persistida em `agent-console/data/operational_config.json`, sem restart; env vars viraram apenas o default
 - ❌ Botão de pausa (`JIRA_POLLER_PAUSED`) no console web não existe (só env var)
-- ❌ Painel de config ainda é só API — a UI do console não expõe os controles
+- ✅ UI do console renomeada para "Sensedia Agentic Workflow" com painel "Agent Configuration" (toggle shadow mode + selects de modelo/effort/intervalo) e indicador SHADOW MODE / LIVE EXECUTION no header
+- ✅ Logo horizontal color oficial da Sensedia está em `agent-console/static/sensedia-logo.svg`
 
 ## User preferences
 

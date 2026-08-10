@@ -20,7 +20,7 @@ def test_index_page_renders(client) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b"Jira Agent Console" in response.data
+    assert b"Sensedia Agentic Workflow" in response.data
 
 
 def test_get_state_reflects_ingested_events(client) -> None:

@@ -1,4 +1,4 @@
-# Jira Agent Console
+# Sensedia Agentic Workflow — Agent Console
 
 A small Flask page reporting whether the Jira poller is alive, the card queue,
 active/parked/dead runs, and a live execution log — and the one place to change
@@ -37,6 +37,16 @@ console is entirely optional infrastructure.
 
 ## What it shows
 
+- **Header** — the official Sensedia logo, the application name, and the mode
+  the agent is actually in: an amber `SHADOW MODE / Monitoring only` badge or a
+  green `LIVE EXECUTION / Agents can execute` one, driven by `GET /api/config`
+  and never by anything the page keeps to itself. The supplied SVG is stored at
+  `static/sensedia-logo.svg` (see `static/README.md`); a neutral fallback slot
+  remains available if the asset cannot be loaded.
+- **Agent Configuration** — the four operational settings below as a toggle
+  and three dropdowns, filled from the API. A change disables the controls,
+  shows `Saving…`, and either confirms or reverts: the panel only ever shows a
+  value the backend accepted (see "Operational configuration").
 - **Overall status** — `working` (a run is executing), `waiting` (nothing
   executing, but at least one run is parked at a gate or a card is queued),
   `idle` (nothing to do), `degraded_poller` (no tick for more than two poll
@@ -94,6 +104,18 @@ installed cron against the saved interval and reinstalls it when they differ.
 
 Every change is written to the execution log (`config: shadow mode enabled`,
 `config: polling interval changed from 1m to 10m`, …).
+
+## Tests
+
+```bash
+pytest agent-console/tests            # backend + server-rendered page
+npm run test:frontend                 # the page's behaviour, in jsdom
+```
+
+The jsdom suite loads `templates/index.html` itself and stubs `fetch`, so the
+loading/error/rollback assertions exercise the code the browser runs. `pytest`
+shells out to it too (`tests/test_frontend.py`) and skips that one test when
+Node or the `jsdom` dev dependency is missing.
 
 ## Known gaps
 

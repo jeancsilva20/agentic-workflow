@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Jira Agent Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensedia Agentic Workflow</title>
 <style>
   :root {
     color-scheme: dark;
@@ -24,7 +25,49 @@
     color: var(--text);
     padding: 24px;
   }
-  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .app-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    margin-bottom: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  /* Height-constrained with auto width so the official asset keeps its own
+     aspect ratio — never stretched to a box we picked. */
+  .sensedia-logo { height: 28px; width: auto; max-width: 180px; display: block; flex-shrink: 0; }
+  /* `display: block` above would otherwise beat the UA rule for [hidden], and
+     the failed <img> would stay on screen next to its own placeholder. */
+  .sensedia-logo[hidden] { display: none; }
+  .sensedia-logo-slot {
+    width: 96px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+  }
+  .shadow-indicator {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .shadow-indicator-title { font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+  .shadow-indicator-detail { font-size: 12px; color: var(--muted); }
+  .shadow-indicator.shadow {
+    background: rgba(210,153,34,.16);
+    border-color: var(--warn);
+  }
+  .shadow-indicator.shadow .shadow-indicator-title { color: var(--warn); }
+  .shadow-indicator.live {
+    background: rgba(63,185,80,.12);
+    border-color: rgba(63,185,80,.5);
+  }
+  .shadow-indicator.live .shadow-indicator-title { color: var(--ok); }
+  .shadow-indicator.unknown .shadow-indicator-title { color: var(--muted); }
   .status-bar {
     display: flex;
     align-items: center;
@@ -42,6 +85,61 @@
   .dot.degraded_poller, .dot.no_tick_ever { background: var(--bad); }
   .status-text { font-weight: 600; text-transform: capitalize; }
   .status-detail { color: var(--muted); font-size: 13px; }
+  .config-panel { margin-bottom: 20px; overflow: visible; max-height: none; }
+  .config-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 16px;
+  }
+  .cfg-status { font-size: 12px; color: var(--muted); }
+  .cfg-status.saving { color: var(--idle); }
+  .cfg-status.ok { color: var(--ok); }
+  .cfg-status.warn { color: var(--warn); }
+  .cfg-status.error { color: var(--bad); }
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px 20px;
+  }
+  .config-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .config-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .config-field select {
+    width: 100%;
+    padding: 7px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  .config-field select:disabled { opacity: .55; cursor: progress; }
+  .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch-track {
+    width: 42px;
+    height: 22px;
+    border-radius: 999px;
+    background: #2f3542;
+    border: 1px solid var(--border);
+    padding: 2px;
+    display: inline-flex;
+    transition: background .15s ease;
+  }
+  .switch-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform .15s ease, background .15s ease;
+  }
+  .switch input:checked + .switch-track { background: rgba(210,153,34,.35); }
+  .switch input:checked + .switch-track .switch-thumb { transform: translateX(20px); background: var(--warn); }
+  .switch input:focus-visible + .switch-track { outline: 2px solid var(--idle); outline-offset: 2px; }
+  .switch input:disabled + .switch-track { opacity: .55; }
+  .switch-state { font-size: 13px; font-weight: 600; }
   .metrics {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -78,10 +176,33 @@
   #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
   #log div { padding: 2px 0; border-bottom: 1px solid var(--border); }
   #log .ts { color: var(--muted); margin-right: 8px; }
+  @media (max-width: 720px) {
+    body { padding: 16px; }
+    .app-header { flex-direction: column; align-items: stretch; }
+    .shadow-indicator { align-items: flex-start; }
+    .config-grid { grid-template-columns: 1fr; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .panels { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-  <h1>Jira Agent Console</h1>
+  <header class="app-header">
+    <div class="brand">
+      <!-- Official Sensedia logo supplied by the brand asset. The fallback
+           slot remains available if the asset cannot be loaded. -->
+      <img id="sensedia-logo" class="sensedia-logo" src="/static/sensedia-logo.svg" alt="Sensedia"
+           onerror="this.hidden = true; document.getElementById('sensedia-logo-slot').hidden = false;">
+      <span id="sensedia-logo-slot" class="sensedia-logo sensedia-logo-slot" role="img"
+            aria-label="Sensedia logo fallback"
+            title="Official Sensedia logo unavailable" hidden></span>
+      <h1>Sensedia Agentic Workflow</h1>
+    </div>
+    <div id="shadow-indicator" class="shadow-indicator unknown">
+      <span id="shadow-indicator-title" class="shadow-indicator-title">CHECKING MODE</span>
+      <span id="shadow-indicator-detail" class="shadow-indicator-detail">Loading configuration…</span>
+    </div>
+  </header>
 
   <div class="status-bar">
     <div id="status-dot" class="dot idle"></div>
@@ -90,6 +211,35 @@
       <div id="status-detail" class="status-detail"></div>
     </div>
   </div>
+
+  <section id="agent-config" class="panel config-panel">
+    <div class="config-head">
+      <h2>Agent Configuration</h2>
+      <span id="cfg-status" class="cfg-status" role="status" aria-live="polite"></span>
+    </div>
+    <div class="config-grid">
+      <div class="config-field">
+        <span class="config-label" id="cfg-shadow-label">Shadow Mode</span>
+        <label class="switch">
+          <input type="checkbox" id="cfg-shadow" aria-labelledby="cfg-shadow-label" disabled>
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span id="cfg-shadow-state" class="switch-state">—</span>
+        </label>
+      </div>
+      <div class="config-field">
+        <label class="config-label" for="cfg-model">Model</label>
+        <select id="cfg-model" disabled></select>
+      </div>
+      <div class="config-field">
+        <label class="config-label" for="cfg-effort">Effort</label>
+        <select id="cfg-effort" disabled></select>
+      </div>
+      <div class="config-field">
+        <label class="config-label" for="cfg-interval">Check Jira every</label>
+        <select id="cfg-interval" disabled></select>
+      </div>
+    </div>
+  </section>
 
   <div class="metrics">
     <div class="metric"><div id="m-working" class="value">0</div><div class="label">Working</div></div>
@@ -184,6 +334,214 @@ async function refresh() {
   }).join("");
 }
 
+// --- agent configuration ------------------------------------------------
+//
+// The four controls below never hold state of their own: `config` is the last
+// value the backend confirmed, and every render redraws the controls from it.
+// That is what makes a failed PUT roll back — we simply re-render, so the
+// screen can never show a setting the runtime rejected.
+
+let config = null;      // {shadow_mode, model, effort, polling_interval_minutes}
+let options = null;     // {available_models, available_efforts, available_polling_intervals}
+let saving = false;     // one admin change at a time; concurrent PUTs are blocked
+let statusTimer = null;
+
+const cfgEls = {
+  shadow: () => document.getElementById("cfg-shadow"),
+  shadowState: () => document.getElementById("cfg-shadow-state"),
+  model: () => document.getElementById("cfg-model"),
+  effort: () => document.getElementById("cfg-effort"),
+  interval: () => document.getElementById("cfg-interval"),
+  status: () => document.getElementById("cfg-status"),
+};
+
+function setCfgStatus(kind, message, autoClear) {
+  const el = cfgEls.status();
+  el.className = "cfg-status" + (kind ? " " + kind : "");
+  el.textContent = message;
+  if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+  if (autoClear) {
+    statusTimer = setTimeout(() => {
+      if (cfgEls.status().textContent === message) setCfgStatus("", "");
+    }, 4000);
+  }
+}
+
+function setCfgDisabled(disabled) {
+  [cfgEls.shadow(), cfgEls.model(), cfgEls.effort(), cfgEls.interval()].forEach(el => {
+    el.disabled = disabled;
+  });
+}
+
+function fillSelect(select, items, selected) {
+  select.innerHTML = "";
+  items.forEach(item => {
+    const option = document.createElement("option");
+    option.value = String(item.value);
+    option.textContent = item.label;
+    if (item.disabled) option.disabled = true;
+    select.appendChild(option);
+  });
+  select.value = String(selected);
+}
+
+function fmtInterval(minutes) {
+  return minutes === 1 ? "1 minute" : minutes + " minutes";
+}
+
+function modelOption(id) {
+  return (options.available_models || []).find(m => m.id === id) || null;
+}
+
+function renderShadowIndicator() {
+  const box = document.getElementById("shadow-indicator");
+  const title = document.getElementById("shadow-indicator-title");
+  const detail = document.getElementById("shadow-indicator-detail");
+  if (!config) {
+    box.className = "shadow-indicator unknown";
+    title.textContent = "CHECKING MODE";
+    detail.textContent = "Loading configuration…";
+    return;
+  }
+  if (config.shadow_mode) {
+    box.className = "shadow-indicator shadow";
+    title.textContent = "SHADOW MODE";
+    detail.textContent = "Monitoring only — agents will not execute";
+  } else {
+    box.className = "shadow-indicator live";
+    title.textContent = "LIVE EXECUTION";
+    detail.textContent = "Agents can execute workflows";
+  }
+}
+
+function renderConfig() {
+  renderShadowIndicator();
+  if (!config || !options) return;
+
+  cfgEls.shadow().checked = config.shadow_mode;
+  cfgEls.shadowState().textContent = config.shadow_mode ? "ON" : "OFF";
+
+  fillSelect(
+    cfgEls.model(),
+    (options.available_models || []).map(m => ({ value: m.id, label: m.label })),
+    config.model
+  );
+
+  // Every effort the backend knows is listed, but the ones the selected model
+  // rejects are greyed out — the backend is still the one validating the pair.
+  const selected = modelOption(config.model);
+  fillSelect(
+    cfgEls.effort(),
+    (options.available_efforts || []).map(effort => ({
+      value: effort,
+      label: effort,
+      disabled: !!selected && !selected.efforts.includes(effort),
+    })),
+    config.effort
+  );
+
+  fillSelect(
+    cfgEls.interval(),
+    (options.available_polling_intervals || []).map(m => ({ value: m, label: fmtInterval(m) })),
+    config.polling_interval_minutes
+  );
+
+  if (!saving) setCfgDisabled(false);
+}
+
+function absorbConfig(body) {
+  config = {
+    shadow_mode: body.shadow_mode,
+    model: body.model,
+    effort: body.effort,
+    polling_interval_minutes: body.polling_interval_minutes,
+  };
+  options = {
+    available_models: body.available_models,
+    available_efforts: body.available_efforts,
+    available_polling_intervals: body.available_polling_intervals,
+  };
+}
+
+async function fetchConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    absorbConfig(await res.json());
+  } catch (e) {
+    setCfgStatus("error", "Could not load configuration: " + e.message);
+    renderShadowIndicator();
+    return;
+  }
+  setCfgStatus("", "");
+  renderConfig();
+}
+
+async function saveConfig(patch) {
+  if (saving || !config) return;
+  saving = true;
+  setCfgDisabled(true);
+  setCfgStatus("saving", "Saving…");
+
+  let error = null;
+  try {
+    const res = await fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    let body = {};
+    try { body = await res.json(); } catch (e) { body = {}; }
+    if (!res.ok) throw new Error(body.error || "save rejected (HTTP " + res.status + ")");
+    absorbConfig(body);
+    const warnings = body.warnings || [];
+    if (warnings.length) {
+      setCfgStatus("warn", "Saved — " + warnings.join("; "));
+    } else {
+      setCfgStatus("ok", "Saved", true);
+    }
+  } catch (e) {
+    error = e;
+  } finally {
+    saving = false;
+    // Redraw from the confirmed config either way: on failure this is the
+    // rollback, so the control never keeps a value the backend refused.
+    renderConfig();
+    setCfgDisabled(false);
+  }
+
+  if (error) {
+    setCfgStatus("error", "Could not save: " + error.message + " — reverted to the value in effect.");
+  }
+}
+
+function wireConfigControls() {
+  cfgEls.shadow().addEventListener("change", event => {
+    saveConfig({ shadow_mode: event.target.checked });
+  });
+
+  cfgEls.model().addEventListener("change", event => {
+    const model = event.target.value;
+    const picked = modelOption(model);
+    // A model that does not accept the current effort would have the whole PUT
+    // rejected, so send the model's own default alongside it.
+    const effort = picked && !picked.efforts.includes(config.effort)
+      ? picked.default_effort
+      : config.effort;
+    saveConfig({ model: model, effort: effort });
+  });
+
+  cfgEls.effort().addEventListener("change", event => {
+    saveConfig({ effort: event.target.value });
+  });
+
+  cfgEls.interval().addEventListener("change", event => {
+    saveConfig({ polling_interval_minutes: parseInt(event.target.value, 10) });
+  });
+}
+
+wireConfigControls();
+fetchConfig();
 refresh();
 setInterval(refresh, 2000);
 </script>
