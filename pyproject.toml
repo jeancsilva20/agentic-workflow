@@ -6,9 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "deepagents==0.7.1",
+    "deepagents==0.7.5",
     "fastapi>=0.141.1",
-    "uvicorn>=0.52.0",
+    "uvicorn>=0.52.1",
     "httpx>=0.28.1",
     "PyJWT>=2.12.1",
     "cryptography>=50.0.0",
@@ -22,14 +22,14 @@ dependencies = [
     "langchain-openai>=1.4.1",
     "langchain-fireworks>=1.5.2",
     # langchain-fireworks 1.4.2 pins a pre-release fireworks-ai; opt in explicitly so uv resolves it.
-    "fireworks-ai>=1.2.5",
+    "fireworks-ai>=1.2.6",
     "langchain-daytona>=0.0.8",
     "langchain-modal>=0.0.6",
     "langchain-runloop>=0.0.7",
     "langchain-e2b==0.0.6",
     "exa-py>=2.16.2",
     "langchain-google-genai>=4.3.2",
-    "langchain-mcp-adapters>=0.3.1",
+    "langchain-mcp-adapters>=0.3.2",
     "stagehand>=3.22.0",
     "websockets>=15.0.1",
 ]
@@ -47,7 +47,7 @@ dev = [
 # `deepagents<0.7.0`, but 0.7.0 keeps the sandbox API backward compatible. Its e2b
 # dependency also caps wcmatch<11.0 while deepagents requires wcmatch>=11.0, so
 # override both transitive bounds until langchain-e2b publishes compatible metadata.
-override-dependencies = ["deepagents==0.7.1", "wcmatch>=11.0"]
+override-dependencies = ["deepagents==0.7.5", "wcmatch>=11.0"]
 
 [build-system]
 requires = ["hatchling"]
