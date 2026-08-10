@@ -221,6 +221,28 @@ async def _thread_metadata(client: Any, thread_id: str) -> dict[str, Any] | None
     return metadata if isinstance(metadata, dict) else {}
 
 
+_ACTIVE_RUN_STATUSES: frozenset[str] = frozenset({"running", "pending", "enqueued"})
+
+
+async def _has_active_run(client: Any, thread_id: str) -> bool:
+    """Return True if the thread has at least one run in an active state.
+
+    Covers ``running``, ``pending`` and ``enqueued`` so that scheduler ticks
+    drained after a server restart are treated as "active" and don't cause
+    duplicate launches.  On any SDK error we err on the side of caution and
+    return True (assume active) to avoid deleting a thread that is actually
+    doing work.
+    """
+    try:
+        runs = await client.runs.list(thread_id, limit=10)
+    except Exception:  # noqa: BLE001
+        return True
+    return any(
+        (r.get("status") if isinstance(r, dict) else None) in _ACTIVE_RUN_STATUSES
+        for r in (runs or [])
+    )
+
+
 def _is_fa_alert_card(issue: dict[str, Any]) -> bool:
     labels = (issue.get("fields") or {}).get("labels") or []
     return any(JIRA_FA_ALERT_LABEL in str(label).lower() for label in labels)
@@ -245,10 +267,35 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
         if not issue_key:
             continue
         thread_id = generate_thread_id_from_jira_issue(issue_key)
-        if await _thread_metadata(client, thread_id) is not None:
-            # Already owns a thread — a duplicate tick must not double-trigger.
-            skipped += 1
-            continue
+        metadata = await _thread_metadata(client, thread_id)
+        if metadata is not None:
+            # Thread exists — decide whether it is legitimately owned or stuck.
+            if metadata.get("jira_parked") or await _has_active_run(client, thread_id):
+                # Parked at a gate (waiting on a human) or a run is in flight
+                # (including scheduler ticks drained after a server restart) —
+                # this card is not ours to re-launch.
+                skipped += 1
+                continue
+            # Interrupted run: thread exists but nothing is running and it is
+            # not parked at a gate.  Delete the ghost thread so we can relaunch
+            # cleanly, as if the card were brand-new.
+            logger.warning(
+                "Jira poller: thread %s for %s has no active run and is not parked "
+                "— deleting ghost thread and relaunching",
+                thread_id,
+                issue_key,
+            )
+            try:
+                await client.threads.delete(thread_id)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Jira poller: failed to delete ghost thread %s for %s — skipping",
+                    thread_id,
+                    issue_key,
+                )
+                skipped += 1
+                continue
+            # Fall through to the normal launch path below.
 
         human_filed = not _is_fa_alert_card(issue)
         if is_shadow_mode():
@@ -272,7 +319,12 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
                 "jira_human_filed": human_filed,
             },
         )
-        launch_configurable = {"source": "jira", "jira_issue_key": issue_key}
+        launch_configurable = {
+            "source": "jira",
+            "jira_issue_key": issue_key,
+            "jira_new_column": COLUMN_TRIGGER,
+            "jira_column": COLUMN_TRIGGER,
+        }
         launch_metadata = {"jira_issue_key": issue_key, "workflow_phase": "triggered"}
         await dispatch_agent_run(
             thread_id,
