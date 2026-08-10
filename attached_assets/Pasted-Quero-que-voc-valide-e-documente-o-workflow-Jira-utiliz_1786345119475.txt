@@ -1,0 +1,982 @@
+Quero que você valide e documente o workflow Jira utilizado pelo Sensedia Agentic Workflow.
+
+IMPORTANTE:
+
+Existe uma diferença entre:
+
+1. NOME DA COLUNA DO BOARD
+2. STATUS REAL DO JIRA
+
+Não trate essas duas coisas como sinônimos.
+
+A coluna é apenas a representação visual do card no board.
+
+O agente, o Jira Poller, o JQL e as automações devem trabalhar com o STATUS REAL do Jira.
+
+Quando o status muda, o Jira posiciona visualmente o card na coluna correspondente.
+
+Portanto, conceitualmente:
+
+AGENTE
+→ altera STATUS
+→ Jira atualiza BOARD/COLUNA
+
+e não:
+
+AGENTE
+→ altera coluna diretamente.
+
+==================================================
+1. MAPEAMENTO ESPERADO
+==================================================
+
+O workflow desejado possui a seguinte ordem visual de colunas:
+
+1. Pronto para Desenvolvimento
+2. Em Revisão de Spec
+3. Spec Aprovada
+4. Ajustar Spec
+5. Em Desenvolvimento
+6. Em Code Review
+7. Code Review Aprovado
+8. Ajustar Code
+9. Em Merge
+10. Mergeado
+11. Concluído
+
+Mas os STATUS reais esperados são:
+
+COLUNA:
+Pronto para Desenvolvimento
+
+STATUS:
+BACKLOG
+
+
+COLUNA:
+Em Revisão de Spec
+
+STATUS:
+Em Revisão de Spec
+
+
+COLUNA:
+Spec Aprovada
+
+STATUS:
+Spec Aprovada
+
+
+COLUNA:
+Ajustar Spec
+
+STATUS:
+Ajustar Spec
+
+
+COLUNA:
+Em Desenvolvimento
+
+STATUS:
+In Progress
+
+
+COLUNA:
+Em Code Review
+
+STATUS:
+Em Code Review
+
+
+COLUNA:
+Code Review Aprovado
+
+STATUS:
+Code Review Aprovado
+
+
+COLUNA:
+Ajustar Code
+
+STATUS:
+Ajustar Code
+
+
+COLUNA:
+Em Merge
+
+STATUS:
+Em Merge
+
+
+COLUNA:
+Mergeado
+
+STATUS:
+Mergeado
+
+
+COLUNA:
+Concluído
+
+STATUS:
+Done
+
+
+Antes de alterar código, confirme via Jira quais são os nomes e, preferencialmente, IDs reais desses statuses.
+
+Não assuma que o texto visual da coluna é o status utilizado pela API.
+
+==================================================
+2. REGRA TÉCNICA
+==================================================
+
+Toda lógica do backend deve utilizar:
+
+STATUS REAL DO JIRA
+
+e não o nome visual da coluna.
+
+Isso se aplica a:
+
+- JQL;
+- Jira Poller;
+- reconhecimento de gates;
+- retomada de threads;
+- movimentações automáticas;
+- logs;
+- metadata;
+- testes.
+
+Exemplo:
+
+O usuário enxerga:
+
+Pronto para Desenvolvimento
+
+Mas o poller deve procurar:
+
+status = "BACKLOG"
+
+Outro exemplo:
+
+O usuário enxerga:
+
+Em Desenvolvimento
+
+Mas o backend deve utilizar:
+
+status = "In Progress"
+
+Outro exemplo:
+
+O usuário enxerga:
+
+Concluído
+
+Mas o backend deve utilizar:
+
+status = "Done"
+
+==================================================
+3. PREFERÊNCIA POR STATUS ID
+==================================================
+
+Se a API e a arquitetura atual permitirem, centralize também os IDs dos statuses.
+
+Preferir conceitualmente:
+
+JIRA_STATUS_BACKLOG
+JIRA_STATUS_SPEC_REVIEW
+JIRA_STATUS_SPEC_APPROVED
+JIRA_STATUS_SPEC_ADJUST
+JIRA_STATUS_IN_PROGRESS
+JIRA_STATUS_CODE_REVIEW
+JIRA_STATUS_CODE_REVIEW_APPROVED
+JIRA_STATUS_CODE_ADJUST
+JIRA_STATUS_IN_MERGE
+JIRA_STATUS_MERGED
+JIRA_STATUS_DONE
+
+Não espalhar strings de status por vários arquivos.
+
+Criar uma fonte central de verdade.
+
+Se status IDs forem utilizados, manter também os nomes amigáveis para logs e observabilidade.
+
+==================================================
+4. FLUXO COMPLETO
+==================================================
+
+O fluxo desejado é:
+
+PRONTO PARA DESENVOLVIMENTO
+status = BACKLOG
+
+        ↓
+
+AGENTE trabalha automaticamente
+
+        ↓
+
+EM REVISÃO DE SPEC
+status = Em Revisão de Spec
+
+        ↓
+
+HUMAN IN THE LOOP
+
+       ↙              ↘
+
+AJUSTAR SPEC       SPEC APROVADA
+status =           status =
+Ajustar Spec       Spec Aprovada
+
+       ↓              ↓
+
+AGENTE            AGENTE
+revisa spec       inicia desenvolvimento
+
+       ↓              ↓
+
+EM REVISÃO       EM DESENVOLVIMENTO
+DE SPEC           status = In Progress
+
+                      ↓
+
+                 AGENTE implementa
+
+                      ↓
+
+                 EM CODE REVIEW
+                 status = Em Code Review
+
+                      ↓
+
+                 REVIEWER automático
+
+                      ↓
+
+                 HUMAN IN THE LOOP
+
+                ↙                 ↘
+
+       AJUSTAR CODE          CODE REVIEW APROVADO
+       status =              status =
+       Ajustar Code          Code Review Aprovado
+
+              ↓                       ↓
+
+        AGENTE corrige          AGENTE prepara merge
+
+              ↓                       ↓
+
+        EM CODE REVIEW              EM MERGE
+                                     status = Em Merge
+
+                                          ↓
+
+                                   HUMAN IN THE LOOP
+
+                                          ↓
+
+                                   Merge manual GitHub
+
+                                          ↓
+
+                                      MERGEADO
+                                      status = Mergeado
+
+                                          ↓
+
+                                   AGENTE finaliza
+
+                                          ↓
+
+                                      CONCLUÍDO
+                                      status = Done
+
+==================================================
+5. BACKLOG
+==================================================
+
+COLUNA:
+
+Pronto para Desenvolvimento
+
+STATUS REAL:
+
+BACKLOG
+
+Esse status é o gatilho inicial.
+
+Quando o Jira Poller encontrar um card elegível com:
+
+status = BACKLOG
+
+o agente deve começar automaticamente.
+
+Deve:
+
+1. Ler Jira.
+2. Coletar requisito.
+3. Executar triagem.
+4. Identificar repositório.
+5. Executar Python Harness.
+6. Analisar código.
+7. Criar branch.
+8. Criar OpenSpec.
+9. Revisar OpenSpec.
+10. Corrigir problemas encontrados.
+11. Commitar OpenSpec.
+12. Fazer push.
+
+Somente depois disso deve alterar o status para:
+
+Em Revisão de Spec.
+
+==================================================
+6. EM REVISÃO DE SPEC
+==================================================
+
+COLUNA:
+
+Em Revisão de Spec
+
+STATUS:
+
+Em Revisão de Spec
+
+É um HUMAN IN THE LOOP.
+
+O agente deve:
+
+- estacionar a thread;
+- terminar o run;
+- aguardar decisão humana.
+
+O humano poderá alterar o status para:
+
+Spec Aprovada
+
+OU:
+
+Ajustar Spec.
+
+==================================================
+7. AJUSTAR SPEC
+==================================================
+
+COLUNA:
+
+Ajustar Spec
+
+STATUS:
+
+Ajustar Spec
+
+Essa alteração é feita pelo HUMANO.
+
+Ela funciona como um comando para o agente.
+
+O poller deve detectar:
+
+Em Revisão de Spec
+→ Ajustar Spec
+
+e retomar a MESMA thread.
+
+O agente deve:
+
+- ler os comentários do Jira;
+- utilizar feedback humano, quando existir;
+- caso não exista feedback explícito, revisar criticamente a própria spec;
+- atualizar OpenSpec;
+- revisar novamente;
+- commit;
+- push.
+
+Depois altera automaticamente o STATUS para:
+
+Em Revisão de Spec.
+
+==================================================
+8. SPEC APROVADA
+==================================================
+
+COLUNA:
+
+Spec Aprovada
+
+STATUS:
+
+Spec Aprovada
+
+Essa movimentação é HUMANA.
+
+Ela significa:
+
+"A especificação está aprovada e a implementação pode começar."
+
+O poller deve retomar a mesma thread.
+
+O primeiro passo do agente deve ser alterar automaticamente o status para:
+
+In Progress.
+
+Visualmente isso fará o card aparecer na coluna:
+
+Em Desenvolvimento.
+
+==================================================
+9. EM DESENVOLVIMENTO
+==================================================
+
+COLUNA:
+
+Em Desenvolvimento
+
+STATUS REAL:
+
+In Progress
+
+Esse é um estado AUTÔNOMO.
+
+Não é Human in the Loop.
+
+O agente deve:
+
+- usar a mesma branch criada durante a Spec;
+- implementar a OpenSpec aprovada;
+- executar tasks;
+- executar testes;
+- executar quality gates;
+- fazer auto-review;
+- executar OpenSpec Verify;
+- commit;
+- push;
+- criar/atualizar PR.
+
+Quando estiver pronto:
+
+alterar automaticamente o STATUS para:
+
+Em Code Review.
+
+==================================================
+10. EM CODE REVIEW
+==================================================
+
+COLUNA:
+
+Em Code Review
+
+STATUS:
+
+Em Code Review
+
+Esse estado possui duas etapas.
+
+PRIMEIRO:
+
+AUTOMAÇÃO.
+
+O Code Reviewer Agent deve:
+
+- analisar PR;
+- analisar diff;
+- comparar com OpenSpec;
+- executar review especializado;
+- publicar comentários no GitHub quando encontrar problemas.
+
+DEPOIS:
+
+HUMAN IN THE LOOP.
+
+O agente estaciona a thread.
+
+O humano pode alterar o status para:
+
+Code Review Aprovado
+
+OU:
+
+Ajustar Code.
+
+==================================================
+11. AJUSTAR CODE
+==================================================
+
+COLUNA:
+
+Ajustar Code
+
+STATUS:
+
+Ajustar Code
+
+Movimentação HUMANA.
+
+O agente deve retomar a mesma thread.
+
+Deve:
+
+- buscar comentários/reviews da PR no GitHub;
+- identificar ajustes solicitados;
+- corrigir código;
+- executar testes;
+- executar quality gates;
+- commit;
+- push.
+
+Depois deve alterar automaticamente o status novamente para:
+
+Em Code Review.
+
+Ao entrar novamente em Em Code Review:
+
+o Code Reviewer Agent deve executar novamente.
+
+==================================================
+12. CODE REVIEW APROVADO
+==================================================
+
+COLUNA:
+
+Code Review Aprovado
+
+STATUS:
+
+Code Review Aprovado
+
+Movimentação HUMANA.
+
+Significa:
+
+"Código aprovado. Preparar entrega para merge."
+
+O agente retoma automaticamente.
+
+Deve:
+
+- executar checks finais;
+- validar testes;
+- executar archive da OpenSpec;
+- revisar documentação canônica;
+- atualizar documentação quando necessário;
+- commit;
+- push;
+- garantir que a PR está pronta para merge.
+
+Somente depois deve alterar automaticamente o status para:
+
+Em Merge.
+
+==================================================
+13. EM MERGE
+==================================================
+
+COLUNA:
+
+Em Merge
+
+STATUS:
+
+Em Merge
+
+É um HUMAN IN THE LOOP.
+
+Esse status significa:
+
+"A automação terminou e a PR está pronta para o humano realizar o merge."
+
+O agente deve:
+
+- estacionar;
+- não fazer merge;
+- não alterar para Mergeado automaticamente.
+
+O merge no GitHub é HUMANO.
+
+==================================================
+14. MERGEADO
+==================================================
+
+COLUNA:
+
+Mergeado
+
+STATUS:
+
+Mergeado
+
+O status somente deve ser utilizado depois que o merge realmente aconteceu no GitHub.
+
+Fluxo:
+
+Em Merge
+↓
+humano faz merge no GitHub
+↓
+humano altera Jira para Mergeado
+
+O poller detecta:
+
+status = Mergeado
+
+e retoma a mesma thread.
+
+==================================================
+15. CONCLUÍDO
+==================================================
+
+COLUNA:
+
+Concluído
+
+STATUS REAL:
+
+Done
+
+Depois de Mergeado, o agente executa apenas o fechamento.
+
+Deve:
+
+- confirmar merge quando possível;
+- registrar métricas;
+- registrar metadados;
+- finalizar observabilidade;
+- comentar resultado final no Jira;
+- executar tarefas administrativas restantes.
+
+Depois alterar automaticamente o status para:
+
+Done.
+
+Visualmente o card ficará na coluna:
+
+Concluído.
+
+==================================================
+16. QUEM MOVIMENTA O QUÊ
+==================================================
+
+MOVIMENTAÇÕES HUMANAS:
+
+Em Revisão de Spec
+→ Spec Aprovada
+
+Em Revisão de Spec
+→ Ajustar Spec
+
+Em Code Review
+→ Code Review Aprovado
+
+Em Code Review
+→ Ajustar Code
+
+Em Merge
+→ Mergeado
+
+O merge do GitHub também é humano.
+
+
+MOVIMENTAÇÕES AUTOMÁTICAS DO AGENTE:
+
+BACKLOG
+→ Em Revisão de Spec
+
+Ajustar Spec
+→ Em Revisão de Spec
+
+Spec Aprovada
+→ In Progress
+
+In Progress
+→ Em Code Review
+
+Ajustar Code
+→ Em Code Review
+
+Code Review Aprovado
+→ Em Merge
+
+Mergeado
+→ Done
+
+==================================================
+17. HUMAN IN THE LOOP
+==================================================
+
+Existem três verdadeiros gates de Human in the Loop:
+
+1. Em Revisão de Spec
+2. Em Code Review
+3. Em Merge
+
+Nesses estados o agente deve estacionar.
+
+Os estados:
+
+Spec Aprovada
+Ajustar Spec
+Code Review Aprovado
+Ajustar Code
+Mergeado
+
+não são locais onde o agente deve ficar parado.
+
+Eles funcionam como EVENTOS/COMANDOS humanos para retomar a thread.
+
+==================================================
+18. THREAD LANGGRAPH
+==================================================
+
+Todo card Jira deve possuir uma thread determinística.
+
+Exemplo:
+
+SSAI-88
+→ mesma thread durante TODO o ciclo.
+
+Nunca criar thread nova quando o status mudar para:
+
+Spec Aprovada
+Ajustar Spec
+Code Review Aprovado
+Ajustar Code
+Mergeado.
+
+O comportamento deve ser:
+
+thread
+→ run
+→ park
+→ novo status humano
+→ resume
+→ run
+→ park
+→ resume
+→ ...
+→ Done.
+
+==================================================
+19. BRANCH GITHUB
+==================================================
+
+A mesma branch deve acompanhar a mudança inteira.
+
+Fluxo:
+
+BACKLOG
+↓
+cria branch
+↓
+OpenSpec
+↓
+Spec Review
+↓
+Implementation
+↓
+Code Review fixes
+↓
+OpenSpec Archive
+↓
+Docs
+↓
+Merge
+
+Não criar uma nova branch quando a Spec for aprovada.
+
+==================================================
+20. POLLER
+==================================================
+
+O Jira Poller deve trabalhar sempre com STATUS REAL.
+
+Não pesquisar pelas labels das colunas visuais.
+
+Exemplo:
+
+ERRADO:
+
+column = "Pronto para Desenvolvimento"
+
+CORRETO:
+
+status = "BACKLOG"
+
+Outro:
+
+ERRADO:
+
+column = "Em Desenvolvimento"
+
+CORRETO:
+
+status = "In Progress"
+
+==================================================
+21. DETECÇÃO DOS HUMAN GATES
+==================================================
+
+Validar cuidadosamente a lógica de polling.
+
+Uma thread estacionada em:
+
+Em Revisão de Spec
+
+precisa conseguir detectar posteriormente:
+
+Spec Aprovada
+
+ou:
+
+Ajustar Spec.
+
+Uma thread estacionada em:
+
+Em Code Review
+
+precisa detectar:
+
+Code Review Aprovado
+
+ou:
+
+Ajustar Code.
+
+Uma thread estacionada em:
+
+Em Merge
+
+precisa detectar:
+
+Mergeado.
+
+Não construir uma consulta que procure somente os statuses onde a thread estava estacionada e, por consequência, deixe de encontrar o card depois que o humano mudar seu status.
+
+==================================================
+22. STATUS MACHINE CENTRAL
+==================================================
+
+Centralizar essa máquina de estados no backend.
+
+Não espalhar lógica de transição pelo prompt dos agentes.
+
+Ter algo conceitualmente equivalente a:
+
+BACKLOG
+→ agent_spec
+→ SPEC_REVIEW
+
+SPEC_REVIEW
+→ SPEC_APPROVED
+→ SPEC_ADJUST
+
+SPEC_APPROVED
+→ IN_PROGRESS
+
+SPEC_ADJUST
+→ SPEC_REVIEW
+
+IN_PROGRESS
+→ CODE_REVIEW
+
+CODE_REVIEW
+→ CODE_REVIEW_APPROVED
+→ CODE_ADJUST
+
+CODE_ADJUST
+→ CODE_REVIEW
+
+CODE_REVIEW_APPROVED
+→ IN_MERGE
+
+IN_MERGE
+→ MERGED
+
+MERGED
+→ DONE
+
+==================================================
+23. REGRA FINAL
+==================================================
+
+Não confundir:
+
+COLUNA DO BOARD
+
+com:
+
+STATUS DO JIRA.
+
+O usuário trabalha visualmente com colunas.
+
+O sistema trabalha tecnicamente com statuses.
+
+A regra arquitetural é:
+
+HUMANO
+→ movimenta card visualmente
+→ Jira altera status
+
+POLLER
+→ detecta status
+
+AGENTE
+→ executa
+
+AGENTE
+→ realiza transição de status
+
+JIRA
+→ reposiciona o card na coluna correspondente.
+
+==================================================
+24. VALIDAÇÃO ANTES DE ALTERAR
+==================================================
+
+Antes de mudar código:
+
+1. Consulte os statuses reais disponíveis no projeto Jira.
+2. Consulte seus IDs.
+3. Consulte as transitions disponíveis.
+4. Consulte o mapeamento Board Column → Status.
+5. Compare com o fluxo acima.
+6. Informe divergências.
+
+Produza uma tabela:
+
+COLUMN
+JIRA STATUS
+STATUS ID
+ENTERED BY
+NEXT ACTION
+NEXT VALID STATUS
+
+Só depois ajuste o sistema.
+
+==================================================
+25. RELATÓRIO FINAL
+==================================================
+
+Ao terminar, apresente:
+
+- ordem final das colunas;
+- status real de cada coluna;
+- status ID de cada status;
+- quais transições são humanas;
+- quais são automáticas;
+- quais são Human in the Loop;
+- quais fazem o agente retomar;
+- configuração central dos statuses;
+- mudanças no Jira Poller;
+- mudanças no agent graph;
+- mudanças no reviewer;
+- testes realizados;
+- divergências encontradas entre coluna e status.
+
+Não altere o fluxo apenas com base nos nomes visuais das colunas.
+
+A API do Jira e o backend devem sempre utilizar os statuses reais.
