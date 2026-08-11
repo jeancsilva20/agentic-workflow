@@ -655,6 +655,78 @@ def test_does_not_duplicate_existing_references(monkeypatch: pytest.MonkeyPatch)
     assert client.post_calls
 
 
+def test_falls_back_to_pat_when_no_user_token_and_no_app_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Jira runs have no user OAuth token and no GitHub App — PAT must be used."""
+    _set_config(monkeypatch, {"source": "jira"})  # not in _USER_TOKEN_SOURCES
+
+    async def no_app_token() -> str | None:
+        return None
+
+    monkeypatch.setattr(opr, "get_github_app_installation_token", no_app_token)
+    monkeypatch.setattr(opr, "get_github_pat", lambda: "ghp_test_pat_value")
+
+    client = _FakeClient(
+        post=_FakeResponse(
+            201, {"html_url": "https://x/pull/5", "number": 5, "user": {"login": "pat-user"}}
+        )
+    )
+    _install_client(monkeypatch, client)
+
+    result = _open()
+
+    assert result["success"] is True
+    assert result["token_kind"] == "pat"
+    assert client.post_calls[0]["headers"]["Authorization"] == "Bearer ghp_test_pat_value"
+
+
+def test_pat_not_used_when_app_token_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GitHub App token takes priority over PAT when both are available."""
+    _set_config(monkeypatch, {"source": "jira"})
+
+    async def app_token_available() -> str | None:
+        return "ghs_app_token"
+
+    monkeypatch.setattr(opr, "get_github_app_installation_token", app_token_available)
+
+    def fail_pat() -> str | None:
+        raise AssertionError("PAT should not be used when App token is available")
+
+    monkeypatch.setattr(opr, "get_github_pat", fail_pat)
+
+    client = _FakeClient(
+        post=_FakeResponse(201, {"html_url": "https://x/pull/6", "number": 6, "user": {}})
+    )
+    _install_client(monkeypatch, client)
+
+    result = _open()
+
+    assert result["success"] is True
+    assert result["token_kind"] == "bot"
+    assert client.post_calls[0]["headers"]["Authorization"] == "Bearer ghs_app_token"
+
+
+def test_no_token_when_pat_also_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When user token, App token, and PAT are all absent, returns no_github_token failure."""
+    _set_config(monkeypatch, {"source": "jira"})
+
+    async def no_app_token() -> str | None:
+        return None
+
+    monkeypatch.setattr(opr, "get_github_app_installation_token", no_app_token)
+    monkeypatch.setattr(opr, "get_github_pat", lambda: None)
+
+    client = _FakeClient(post=_FakeResponse(201, {"html_url": "u", "number": 1, "user": {}}))
+    _install_client(monkeypatch, client)
+
+    result = _open()
+
+    assert result["success"] is False
+    assert result["code"] == "no_github_token"
+    assert client.post_calls == []
+
+
 def test_derive_pr_state_prefers_merged() -> None:
     assert opr.derive_pr_state(state="closed", merged=True, draft=True) == "merged"
 

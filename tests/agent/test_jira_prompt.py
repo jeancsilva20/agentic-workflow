@@ -242,3 +242,33 @@ def test_prompt_falls_back_to_cloning_when_no_repo_was_prepped() -> None:
 
     assert "Clone the target repository as usual" in prompt
     assert "git -C <target-repo-dir>" in prompt
+
+
+def test_prompt_guards_code_review_move_on_pr_creation() -> None:
+    """The card must not reach Em Code Review unless the PR was created successfully.
+
+    The guard must:
+    - Appear in the spec-approved / in-progress implementation section.
+    - Require confirming ``open_pull_request`` returned ``success: true`` and a PR URL.
+    - Instruct the agent to comment the failure with ``jira_add_comment`` and end the
+      turn without advancing the card when ``open_pull_request`` fails.
+    """
+    prompt = construct_system_prompt(working_dir="/workspace", jira_issue_key="SSAI-42")
+
+    # The guard section must exist and be correctly labelled.
+    assert "Guard before `Em Code Review`" in prompt
+
+    # Must require a confirmed success and a PR URL before parking.
+    assert "success: true" in prompt
+    assert "PR URL" in prompt
+
+    # On failure the agent posts a comment and ends its turn without advancing.
+    assert "jira_add_comment" in prompt
+    assert "end your turn" in prompt
+
+    # The guard must live inside the "Resuming After a Human Decision" section,
+    # specifically within the Spec Aprovada / in-progress path — before the agent
+    # reaches the col_adjust_code (Ajustar Code) sub-section of that same block.
+    resume_section = prompt.split("### Resuming After a Human Decision", 1)[1]
+    spec_approved_block = resume_section.split("`Ajustar Code`", 1)[0]
+    assert "Guard before `Em Code Review`" in spec_approved_block
