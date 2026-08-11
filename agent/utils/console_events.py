@@ -30,7 +30,10 @@ async def _push(kind: str, payload: dict[str, Any]) -> None:
         logger.debug("Console push failed for event kind=%s (ignored)", kind, exc_info=True)
 
 
-async def push_tick_event(step_a: dict[str, Any], step_b: dict[str, Any]) -> None:
+async def push_tick_event(
+    step_a: dict[str, Any],
+    step_b: dict[str, Any],
+) -> None:
     """Report one poller tick's outcome (task 5.9 / 5b.4)."""
     await _push("tick", {"step_a": step_a, "step_b": step_b})
 

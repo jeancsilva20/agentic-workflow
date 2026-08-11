@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sensedia Agentic Workflow</title>
+<title>Agentic Workflow Console</title>
 <style>
   :root {
     color-scheme: light;
@@ -29,8 +29,18 @@
     padding: 32px;
     line-height: 1.45;
   }
-  h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  h1 {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 19px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+  }
   .app-header {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -162,6 +172,8 @@
   .metric .value { font-size: 26px; font-weight: 700; }
   .metric .label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
   .metric.dead .value { color: var(--bad); }
+  .metric.shadow .value { color: var(--warn); }
+  .metric .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }
   .panels { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px; }
   .panel {
     background: var(--panel);
@@ -276,6 +288,14 @@
   @media (max-width: 720px) {
     body { padding: 20px 16px; }
     .app-header { flex-direction: column; align-items: stretch; }
+    .app-header h1 {
+      position: static;
+      transform: none;
+      width: 100%;
+      order: 2;
+      text-align: center;
+      white-space: normal;
+    }
     .shadow-indicator { align-items: flex-start; }
     .config-grid { grid-template-columns: 1fr; }
     .metrics { grid-template-columns: repeat(2, 1fr); }
@@ -293,7 +313,7 @@
       <span id="sensedia-logo-slot" class="sensedia-logo sensedia-logo-slot" role="img"
             aria-label="Sensedia logo fallback"
             title="Official Sensedia logo unavailable" hidden></span>
-      <h1>Sensedia Agentic Workflow</h1>
+      <h1>Agentic Workflow Console</h1>
     </div>
     <div id="shadow-indicator" class="shadow-indicator unknown">
       <span id="shadow-indicator-title" class="shadow-indicator-title">CHECKING MODE</span>
@@ -364,6 +384,11 @@
     <div class="metric"><div id="m-working" class="value">0</div><div class="label">Working</div></div>
     <div class="metric"><div id="m-waiting" class="value">0</div><div class="label">Waiting on human</div></div>
     <div class="metric dead"><div id="m-dead" class="value">0</div><div class="label">Dead</div></div>
+    <div class="metric shadow">
+      <div id="m-not-started" class="value">0</div>
+      <div class="label">Not started · Shadow</div>
+      <div class="hint">Would trigger if started</div>
+    </div>
   </div>
 
   <section id="active-agents" class="panel wide">
@@ -442,6 +467,7 @@ async function refresh() {
   document.getElementById("m-working").textContent = data.metrics.working;
   document.getElementById("m-waiting").textContent = data.metrics.waiting;
   document.getElementById("m-dead").textContent = data.metrics.dead;
+   document.getElementById("m-not-started").textContent = data.metrics.not_started || 0;
 
   const runsBody = document.getElementById("runs-body");
   runsBody.innerHTML = data.runs.map(r =>

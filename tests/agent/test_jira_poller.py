@@ -119,7 +119,7 @@ async def test_step_a_launches_thread_for_new_card() -> None:
     ):
         result = await jira_poller._tick_step_a(client)
 
-    assert result == {"launched": 1, "skipped": 0}
+    assert result == {"launched": 1, "skipped": 0, "shadow_candidates": []}
     mock_dispatch.assert_awaited_once()
     client.threads.create.assert_awaited_once()
     mock_push.assert_awaited_once_with("SSAI-1", "launched", human_filed=True)
@@ -143,7 +143,7 @@ async def test_step_a_is_idempotent_for_a_card_that_already_owns_a_thread() -> N
     ):
         result = await jira_poller._tick_step_a(client)
 
-    assert result == {"launched": 0, "skipped": 1}
+    assert result == {"launched": 0, "skipped": 1, "shadow_candidates": []}
     mock_dispatch.assert_not_called()
 
 
@@ -184,7 +184,7 @@ async def test_step_a_shadow_mode_never_launches() -> None:
     mock_dispatch.assert_not_called()
     client.threads.create.assert_not_called()
     mock_log.assert_awaited_once()
-    assert result == {"launched": 0, "skipped": 0}
+    assert result == {"launched": 0, "skipped": 0, "shadow_candidates": ["SSAI-3"]}
 
 
 @pytest.mark.asyncio
@@ -203,7 +203,7 @@ async def test_step_a_paused_mode_never_launches() -> None:
         result = await jira_poller._tick_step_a(client)
 
     mock_dispatch.assert_not_called()
-    assert result == {"launched": 0, "skipped": 0}
+    assert result == {"launched": 0, "skipped": 0, "shadow_candidates": []}
 
 
 @pytest.mark.asyncio
@@ -589,7 +589,7 @@ async def test_step_a_launches_a_card_that_falls_beyond_the_first_page() -> None
     ):
         result = await jira_poller._tick_step_a(client)
 
-    assert result == {"launched": 1, "skipped": 50}
+    assert result == {"launched": 1, "skipped": 50, "shadow_candidates": []}
     mock_dispatch.assert_awaited_once()
 
 

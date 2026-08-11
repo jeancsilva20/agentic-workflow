@@ -43,6 +43,7 @@ class ConsoleStore:
         self._last_tick_at: float | None = None
         self._runs: dict[str, RunRecord] = {}
         self._queue: dict[str, float] = {}  # issue_key -> first_seen_at
+        self._shadow_candidates: set[str] = set()
         self._log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
         self._tick_log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
         self._agent_log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
@@ -52,6 +53,11 @@ class ConsoleStore:
     def record_tick(self, step_a: dict[str, Any], step_b: dict[str, Any]) -> None:
         with self._lock:
             self._last_tick_at = time.time()
+            candidates = step_a.get("shadow_candidates", [])
+            if isinstance(candidates, list):
+                self._shadow_candidates = {
+                    str(issue_key) for issue_key in candidates if issue_key
+                }
         self._append_log(f"tick: step_a={step_a} step_b={step_b}", stream="tick")
 
     def record_run_event(self, issue_key: str, action: str, **extra: Any) -> None:
@@ -64,6 +70,7 @@ class ConsoleStore:
                     human_filed=extra.get("human_filed"),
                 )
                 self._queue.pop(issue_key, None)
+                self._shadow_candidates.discard(issue_key)
             elif action == "resumed":
                 self._runs[issue_key] = RunRecord(
                     issue_key=issue_key, status="working", column=extra.get("column")
@@ -99,6 +106,7 @@ class ConsoleStore:
         with self._lock:
             self._runs.pop(issue_key, None)
             self._queue.pop(issue_key, None)
+            self._shadow_candidates.discard(issue_key)
         self._append_log(f"run {issue_key}: reset", stream="agent")
 
     def _append_log(self, message: str, *, stream: str = "agent") -> None:
@@ -117,6 +125,7 @@ class ConsoleStore:
             last_tick_at = self._last_tick_at
             runs = list(self._runs.values())
             queue = dict(self._queue)
+            shadow_candidates = set(self._shadow_candidates)
             log = list(self._log)[-100:]
             tick_log = list(self._tick_log)[-100:]
             agent_log = list(self._agent_log)[-100:]
@@ -155,6 +164,7 @@ class ConsoleStore:
                 "waiting": len(waiting),
                 "queued": len(queue),
                 "dead": len(dead),
+                "not_started": len(shadow_candidates),
             },
             "queue": [
                 {"issue_key": key, "waiting_seconds": now - since}

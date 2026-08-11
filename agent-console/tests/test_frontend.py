@@ -38,9 +38,9 @@ def page(client) -> str:
     return response.get_data(as_text=True)
 
 
-def test_page_is_branded_sensedia_agentic_workflow(page: str) -> None:
-    assert "<title>Sensedia Agentic Workflow</title>" in page
-    assert "<h1>Sensedia Agentic Workflow</h1>" in page
+def test_page_is_branded_agentic_workflow_console(page: str) -> None:
+    assert "<title>Agentic Workflow Console</title>" in page
+    assert "<h1>Agentic Workflow Console</h1>" in page
     assert "Jira Agent Console" not in page
 
 
@@ -50,7 +50,7 @@ def test_header_has_a_logo_slot_ahead_of_the_name(page: str) -> None:
     # No official Sensedia asset ships with the repo, so the header must fall
     # back to an empty slot — never to a redrawn approximation of the mark.
     assert 'id="sensedia-logo-slot"' in page
-    assert page.index('id="sensedia-logo"') < page.index("<h1>Sensedia Agentic Workflow</h1>")
+    assert page.index('id="sensedia-logo"') < page.index("<h1>Agentic Workflow Console</h1>")
 
 
 def test_official_logo_asset_is_available() -> None:
@@ -128,6 +128,7 @@ def test_existing_dashboard_areas_are_preserved(page: str) -> None:
         "m-working",
         "m-waiting",
         "m-dead",
+        "m-not-started",
         "runs-body",
         "tick-log",
         "agent-log",

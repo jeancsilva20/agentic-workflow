@@ -20,6 +20,30 @@ def test_idle_after_a_healthy_tick_with_nothing_to_do() -> None:
 
     assert status["overall_status"] == "idle"
     assert status["poller"]["healthy"] is True
+    assert status["metrics"]["not_started"] == 0
+
+
+def test_shadow_candidates_are_counted_once_and_synced_by_tick() -> None:
+    store = ConsoleStore(poll_interval_seconds=60)
+
+    store.record_tick({"shadow_candidates": ["SSAI-1", "SSAI-2"]}, {})
+    assert store.status()["metrics"]["not_started"] == 2
+
+    # A repeated tick does not count the same card twice.
+    store.record_tick({"shadow_candidates": ["SSAI-1", "SSAI-2"]}, {})
+    assert store.status()["metrics"]["not_started"] == 2
+
+    # The next poll is authoritative: cards no longer eligible disappear.
+    store.record_tick({"shadow_candidates": ["SSAI-2"]}, {})
+    assert store.status()["metrics"]["not_started"] == 1
+
+
+def test_starting_a_shadow_candidate_removes_it_from_not_started() -> None:
+    store = ConsoleStore(poll_interval_seconds=60)
+    store.record_tick({"shadow_candidates": ["SSAI-1"]}, {})
+    store.record_run_event("SSAI-1", "launched")
+
+    assert store.status()["metrics"]["not_started"] == 0
 
 
 def test_working_when_a_run_is_launched() -> None:

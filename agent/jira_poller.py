@@ -258,10 +258,11 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
     error = result.get("error")
     if error and not result["issues"]:
         logger.warning("Jira poller: trigger search failed: %s", error)
-        return {"launched": 0, "skipped": 0, "error": error}
+        return {"launched": 0, "skipped": 0, "shadow_candidates": [], "error": error}
 
     launched = 0
     skipped = 0
+    shadow_candidates: list[str] = []
     for issue in result.get("issues", []):
         issue_key = issue.get("key")
         if not issue_key:
@@ -299,6 +300,7 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
 
         human_filed = not _is_fa_alert_card(issue)
         if is_shadow_mode():
+            shadow_candidates.append(issue_key)
             logger.info(
                 "Jira poller [shadow]: would launch thread for %s (human_filed=%s)",
                 issue_key,
@@ -337,7 +339,11 @@ async def _tick_step_a(client: Any) -> dict[str, Any]:
         launched += 1
         await console_events.push_run_event(issue_key, "launched", human_filed=human_filed)
 
-    summary = {"launched": launched, "skipped": skipped}
+    summary = {
+        "launched": launched,
+        "skipped": skipped,
+        "shadow_candidates": shadow_candidates,
+    }
     if error:
         # Partial page failure: report it, but keep the work already done.
         logger.warning("Jira poller: trigger search failed mid-pagination: %s", error)

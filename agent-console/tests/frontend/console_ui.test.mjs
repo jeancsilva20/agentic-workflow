@@ -42,7 +42,7 @@ const BACKEND_CONFIG = {
 const EMPTY_STATE = {
   overall_status: "idle",
   poller: { last_tick_at: null, seconds_since_tick: null, healthy: false },
-  metrics: { working: 0, waiting: 0, queued: 0, dead: 0 },
+  metrics: { working: 0, waiting: 0, queued: 0, dead: 0, not_started: 0 },
   queue: [],
   runs: [],
   log: [],
@@ -183,15 +183,15 @@ function boot({
   };
 }
 
-/** 1. The application is named "Sensedia Agentic Workflow". */
-test("page and header carry the Sensedia Agentic Workflow name", async () => {
+/** 1. The application is named "Agentic Workflow Console". */
+test("page and header carry the Agentic Workflow Console name", async () => {
   const ui = boot();
   await ui.settle();
 
-  assert.equal(ui.window.document.title, "Sensedia Agentic Workflow");
+  assert.equal(ui.window.document.title, "Agentic Workflow Console");
   assert.equal(
     ui.window.document.querySelector(".app-header h1").textContent.trim(),
-    "Sensedia Agentic Workflow",
+    "Agentic Workflow Console",
   );
   ui.close();
 });
@@ -578,6 +578,7 @@ test("existing dashboard areas still render", async () => {
   assert.equal(ui.$("status-text").textContent, "working");
   assert.equal(ui.$("m-working").textContent, "1");
   assert.equal(ui.$("m-dead").textContent, "4");
+  assert.equal(ui.$("m-not-started").textContent, "0");
   assert.match(ui.$("runs-body").textContent, /SSAI-2/);
   assert.match(ui.$("tick-log").textContent, /\[shadow\] would trigger SSAI-88/);
   assert.match(ui.$("agent-log").textContent, /SSAI-2/);

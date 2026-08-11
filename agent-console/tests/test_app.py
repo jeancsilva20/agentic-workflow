@@ -9,6 +9,7 @@ from store import store as global_store
 def client():
     global_store._runs.clear()
     global_store._queue.clear()
+    global_store._shadow_candidates.clear()
     global_store._log.clear()
     global_store._tick_log.clear()
     global_store._agent_log.clear()
@@ -22,11 +23,14 @@ def test_index_page_renders(client) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b"Sensedia Agentic Workflow" in response.data
+    assert b"Agentic Workflow Console" in response.data
 
 
 def test_get_state_reflects_ingested_events(client) -> None:
-    client.post("/api/events/tick", json={"step_a": {"launched": 1}, "step_b": {}})
+    client.post(
+        "/api/events/tick",
+        json={"step_a": {"launched": 1, "shadow_candidates": ["SSAI-2"]}, "step_b": {}},
+    )
     client.post("/api/events/run", json={"issue_key": "SSAI-1", "action": "launched"})
 
     response = client.get("/api/state")
@@ -34,6 +38,7 @@ def test_get_state_reflects_ingested_events(client) -> None:
 
     assert data["overall_status"] == "working"
     assert data["metrics"]["working"] == 1
+    assert data["metrics"]["not_started"] == 1
     assert data["tick_log"][0]["message"].startswith("tick:")
     assert data["agent_log"][0]["message"].startswith("run SSAI-1:")
 
