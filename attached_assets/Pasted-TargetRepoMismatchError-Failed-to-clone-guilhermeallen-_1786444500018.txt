@@ -1,0 +1,55 @@
+TargetRepoMismatchError(
+  'Failed to clone guilhermeallen/sensedia-backend-case into /home/runner/open-swe-sandbox/sensedia-backend-case: [stderr] /nix/store/lw117lsr8d585xs63kx5k233impyrq7q-bash-5.3p3/bin/sh: line 1: gh: command not found
+
+Exit code: 127'
+)Traceback (most recent call last):
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/main.py", line 3440, in astream
+    async for _ in runner.atick(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_runner.py", line 396, in atick
+    await arun_with_retry(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_retry.py", line 744, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 733, in ainvoke
+    input = await asyncio.create_task(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 501, in ainvoke
+    ret = await self.afunc(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/prepare_run.py", line 66, in abefore_agent
+    updates = await self._prepare(prepared_state, runtime)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 952, in _prepare
+    target_repo_dir = await self._ensure_target_repo_dir(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/server.py", line 903, in _ensure_target_repo_dir
+    return await ensure_target_repo_clone(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/utils/target_repo.py", line 118, in ensure_target_repo_clone
+    raise TargetRepoMismatchError(
+
+
+agent.utils.target_repo.TargetRepoMismatchError: Failed to clone guilhermeallen/sensedia-backend-case into /home/runner/open-swe-sandbox/sensedia-backend-case: [stderr] /nix/store/lw117lsr8d585xs63kx5k233impyrq7q-bash-5.3p3/bin/sh: line 1: gh: command not found
+
+Exit code: 127
+
+
+During task with name 'PrepareAgentRunMiddleware.before_agent' and id '41f91436-ce08-187e-c546-d578d4c5432c'

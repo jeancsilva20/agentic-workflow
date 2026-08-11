@@ -28,7 +28,6 @@ if ! python3 -c "import fastapi, langgraph_api, anthropic" 2>/dev/null; then
     "langsmith>=0.10.16" \
     "langchain-openai>=1.4.1" \
     "langchain-fireworks>=1.5.2" \
-    "fireworks-ai>=1.2.5" \
     "exa-py>=2.16.2" \
     "langchain-google-genai>=4.3.2" \
     "langchain-mcp-adapters>=0.3.1" \
