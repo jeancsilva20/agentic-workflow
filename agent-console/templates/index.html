@@ -6,16 +6,16 @@
 <title>Sensedia Agentic Workflow</title>
 <style>
   :root {
-    color-scheme: dark;
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #2a2e38;
-    --text: #e6e8ec;
-    --muted: #8b93a3;
-    --ok: #3fb950;
-    --warn: #d29922;
-    --bad: #f85149;
-    --idle: #58a6ff;
+    color-scheme: light;
+    --bg: #f5f7fa;
+    --panel: #ffffff;
+    --border: #dfe4ea;
+    --text: #202733;
+    --muted: #687385;
+    --ok: #198754;
+    --warn: #b7791f;
+    --bad: #c0392b;
+    --idle: #2474c6;
   }
   * { box-sizing: border-box; }
   body {
@@ -122,7 +122,7 @@
     width: 42px;
     height: 22px;
     border-radius: 999px;
-    background: #2f3542;
+     background: #d5dbe3;
     border: 1px solid var(--border);
     padding: 2px;
     display: inline-flex;
@@ -135,7 +135,7 @@
     background: var(--muted);
     transition: transform .15s ease, background .15s ease;
   }
-  .switch input:checked + .switch-track { background: rgba(210,153,34,.35); }
+   .switch input:checked + .switch-track { background: rgba(183,121,31,.28); }
   .switch input:checked + .switch-track .switch-thumb { transform: translateX(20px); background: var(--warn); }
   .switch input:focus-visible + .switch-track { outline: 2px solid var(--idle); outline-offset: 2px; }
   .switch input:disabled + .switch-track { opacity: .55; }
@@ -155,7 +155,7 @@
   .metric .value { font-size: 26px; font-weight: 700; }
   .metric .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
   .metric.dead .value { color: var(--bad); }
-  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+   .panels { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -200,27 +200,8 @@
   .badge.tier-medium { background: rgba(88,166,255,.16); color: var(--idle); }
   .badge.tier-high { background: rgba(210,153,34,.18); color: var(--warn); }
   .badge.tier-critical { background: rgba(248,81,73,.18); color: var(--bad); }
-  .usage-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 12px;
-    margin-top: 10px;
-  }
-  .usage-cell {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    min-width: 0;
-  }
-  .usage-cell .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .usage-cell .v { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
-  .usage-cell .sub { color: var(--muted); font-size: 11px; }
-  /* A cost we do not know is never rendered as a number — "$0.00" would read
-     as "this ran for free". */
-  .cost-estimated { color: var(--warn); }
-  .cost-unknown { color: var(--muted); font-style: italic; }
-  tr.clickable { cursor: pointer; }
-  tr.clickable:hover { background: rgba(88,166,255,.07); }
+   tr.clickable { cursor: pointer; }
+   tr.clickable:hover { background: #f0f5fb; }
   .link-button {
     background: none;
     border: 1px solid var(--border);
@@ -272,19 +253,25 @@
     font-size: 13px;
     text-transform: uppercase;
   }
-  .timeline { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; }
-  .timeline li { padding: 6px 0; border-bottom: 1px solid var(--border); }
-  .timeline .ts { color: var(--muted); margin-right: 8px; font-family: ui-monospace, Consolas, monospace; }
-  #log { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
-  #log div { padding: 2px 0; border-bottom: 1px solid var(--border); }
-  #log .ts { color: var(--muted); margin-right: 8px; }
+   .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+   .log-panel { min-width: 0; }
+   .log-panel h2 { margin-bottom: 10px; }
+   .log-stream {
+     max-height: 360px;
+     overflow: auto;
+     font-family: ui-monospace, Consolas, monospace;
+     font-size: 12px;
+     white-space: pre-wrap;
+   }
+   .log-stream div { padding: 5px 0; border-bottom: 1px solid var(--border); }
+   .log-stream .ts { color: var(--muted); margin-right: 8px; }
   @media (max-width: 720px) {
     body { padding: 16px; }
     .app-header { flex-direction: column; align-items: stretch; }
     .shadow-indicator { align-items: flex-start; }
     .config-grid { grid-template-columns: 1fr; }
     .metrics { grid-template-columns: repeat(2, 1fr); }
-    .panels { grid-template-columns: 1fr; }
+     .panels, .log-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -365,19 +352,9 @@
     </div>
   </section>
 
-  <section id="usage-overview" class="panel wide">
-    <details id="usage-details" open>
-      <summary class="section-title">Usage today <span id="usage-date" class="muted"></span></summary>
-      <div id="usage-totals" class="usage-grid"></div>
-      <div id="usage-by-model" class="usage-grid"></div>
-      <div id="usage-empty" class="empty">Loading today's usage…</div>
-    </details>
-  </section>
-
   <div class="metrics">
     <div class="metric"><div id="m-working" class="value">0</div><div class="label">Working</div></div>
     <div class="metric"><div id="m-waiting" class="value">0</div><div class="label">Waiting on human</div></div>
-    <div class="metric"><div id="m-queued" class="value">0</div><div class="label">Queued</div></div>
     <div class="metric dead"><div id="m-dead" class="value">0</div><div class="label">Dead</div></div>
   </div>
 
@@ -396,15 +373,7 @@
   </section>
 
   <div class="panels">
-    <div class="panel">
-      <h2>Queue</h2>
-      <table>
-        <thead><tr><th>Issue</th><th>Waiting</th></tr></thead>
-        <tbody id="queue-body"></tbody>
-      </table>
-      <div id="queue-empty" class="empty" style="display:none">Nothing waiting for a thread.</div>
-    </div>
-    <div class="panel">
+    <div class="panel wide">
       <h2>Runs</h2>
       <table>
         <thead><tr><th>Issue</th><th>Status</th><th>Column</th><th>Parked for</th><th>Action</th></tr></thead>
@@ -414,44 +383,17 @@
     </div>
   </div>
 
-  <section id="card-detail" class="panel wide" hidden>
-    <div class="config-head">
-      <h2>Card detail — <span id="card-detail-key"></span></h2>
-      <button id="card-detail-close" type="button" class="link-button">Close</button>
-    </div>
-    <div id="card-detail-loading" class="empty" role="status" aria-live="polite">Loading usage…</div>
-    <div id="card-detail-error" class="empty" hidden></div>
-    <div id="card-detail-body" hidden>
-      <div id="card-detail-meta" class="usage-grid"></div>
-      <div class="subsection">
-        <span class="section-title">Total usage</span>
-        <div id="card-detail-totals" class="usage-grid"></div>
-      </div>
-      <div class="subsection">
-        <span class="section-title">By model</span>
-        <table>
-          <thead><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead>
-          <tbody id="card-detail-by-model"></tbody>
-        </table>
-      </div>
-      <div class="subsection">
-        <span class="section-title">By agent</span>
-        <table>
-          <thead><tr><th>Agent</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr></thead>
-          <tbody id="card-detail-by-agent"></tbody>
-        </table>
-      </div>
-      <div class="subsection">
-        <span class="section-title">Timeline</span>
-        <ol id="card-detail-timeline" class="timeline"></ol>
-        <div id="card-detail-timeline-empty" class="empty">No completed run recorded for this card.</div>
-      </div>
-    </div>
-  </section>
-
-  <div class="panel">
-    <h2>Execution log</h2>
-    <div id="log"></div>
+  <div class="log-grid">
+    <section class="panel log-panel">
+      <h2>Tick log</h2>
+      <div id="tick-log" class="log-stream"></div>
+      <div id="tick-log-empty" class="empty">No poller ticks recorded yet.</div>
+    </section>
+    <section class="panel log-panel">
+      <h2>Agent log</h2>
+      <div id="agent-log" class="log-stream"></div>
+      <div id="agent-log-empty" class="empty">No agent activity recorded yet.</div>
+    </section>
   </div>
 
 <script>
@@ -491,19 +433,11 @@ async function refresh() {
 
   document.getElementById("m-working").textContent = data.metrics.working;
   document.getElementById("m-waiting").textContent = data.metrics.waiting;
-  document.getElementById("m-queued").textContent = data.metrics.queued;
   document.getElementById("m-dead").textContent = data.metrics.dead;
-
-  const queueBody = document.getElementById("queue-body");
-  queueBody.innerHTML = data.queue.map(q =>
-    `<tr class="clickable" data-card="${escapeHtml(q.issue_key)}">` +
-    `<td>${escapeHtml(q.issue_key)}</td><td>${fmtSeconds(q.waiting_seconds)}</td></tr>`
-  ).join("");
-  document.getElementById("queue-empty").style.display = data.queue.length ? "none" : "block";
 
   const runsBody = document.getElementById("runs-body");
   runsBody.innerHTML = data.runs.map(r =>
-    `<tr class="clickable" data-card="${escapeHtml(r.issue_key)}">` +
+    `<tr>` +
     `<td>${escapeHtml(r.issue_key)}</td>` +
     `<td><span class="badge ${r.status}">${r.status}</span></td>` +
     `<td>${escapeHtml(r.column || "-")}</td>` +
@@ -512,57 +446,35 @@ async function refresh() {
   ).join("");
   document.getElementById("runs-empty").style.display = data.runs.length ? "none" : "block";
 
-  const logDiv = document.getElementById("log");
-  logDiv.innerHTML = data.log.slice().reverse().map(entry => {
+   function renderLog(streamId, emptyId, entries) {
+     const logDiv = document.getElementById(streamId);
+     const empty = document.getElementById(emptyId);
+     const rows = (entries || []).slice().reverse();
+     logDiv.innerHTML = rows.map(entry => {
     const ts = new Date(entry.at * 1000).toLocaleTimeString();
     return `<div><span class="ts">${ts}</span>${escapeHtml(entry.message)}</div>`;
-  }).join("");
+     }).join("");
+     empty.style.display = rows.length ? "none" : "block";
+   }
+   renderLog("tick-log", "tick-log-empty", data.tick_log);
+   renderLog("agent-log", "agent-log-empty", data.agent_log);
 
   // Piggy-backs on the dashboard's own cycle instead of opening a second one:
   // both read in-memory state from the same process, so one timer is enough.
   refreshActiveAgents();
 }
 
-// --- observability (read-only) -------------------------------------------
-//
-// Everything below renders numbers the agent pushed to this process. Nothing
-// here is editable and nothing here reaches another service: no LangSmith call,
-// therefore no credential, ever leaves the page or lives in it.
-
-function fmtTokens(value) {
-  if (value === null || value === undefined) return "—";
-  return Number(value).toLocaleString("en-US");
-}
-
-/** A cost we do not know renders as words, never as a number: "$0.00" would
- *  read as "this ran for free", which is a different claim entirely. */
-function costHtml(cost, costSource, runsMissingCost) {
-  if (cost === null || cost === undefined) {
-    return `<span class="cost-unknown">Cost unavailable</span>`;
-  }
-  const amount = "$" + Number(cost).toFixed(4);
-  const estimated = costSource === "estimated";
-  const label = estimated ? "Estimated " + amount : amount;
-  const missing = Number(runsMissingCost) || 0;
-  const note = missing
-    ? ` <span class="muted">(${missing} run${missing === 1 ? "" : "s"} unpriced)</span>`
-    : "";
-  return `<span class="${estimated ? "cost-estimated" : ""}">${label}</span>${note}`;
-}
-
-function modelLabel(model) {
-  const id = String(model || "");
-  if (/haiku/i.test(id)) return "Haiku";
-  if (/sonnet/i.test(id)) return "Sonnet";
-  if (/opus/i.test(id)) return "Opus";
-  return id.split(":").pop() || "unknown";
+async function getJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return await res.json();
 }
 
 function effortHtml(effort, effortSupported) {
   if (effort) return escapeHtml(effort);
-  // "N/A" is the model refusing the knob; "none" is a role choosing not to pay
-  // for reasoning it does not need. Collapsing the two would hide a decision.
-  if (effortSupported === false) return `<span class="muted" title="this model has no effort setting">N/A</span>`;
+  if (effortSupported === false) {
+    return `<span class="muted" title="this model has no effort setting">N/A</span>`;
+  }
   return `<span class="muted" title="this role sends no effort">none</span>`;
 }
 
@@ -577,18 +489,6 @@ function escalationBadge(row) {
   if (!escalated) return "";
   const reason = row.escalation_reason || row.routing_reason || "escalated";
   return ` <span class="badge escalated" title="${escapeHtml(reason)}">ESCALATED ↑</span>`;
-}
-
-function usageCell(key, value, sub) {
-  return `<div class="usage-cell"><div class="k">${escapeHtml(key)}</div>` +
-    `<div class="v">${value}</div>` +
-    (sub ? `<div class="sub">${sub}</div>` : "") + `</div>`;
-}
-
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return await res.json();
 }
 
 // --- model routing table --------------------------------------------------
@@ -637,10 +537,7 @@ function renderActiveAgents() {
   const empty = document.getElementById("active-agents-empty");
   body.innerHTML = liveRows.map(row => {
     const card = row.jira_issue_key || row.thread_id || "—";
-    const clickable = row.jira_issue_key
-      ? ` class="clickable" data-card="${escapeHtml(row.jira_issue_key)}"`
-      : "";
-    return `<tr${clickable}>` +
+     return `<tr>` +
       `<td>${escapeHtml(card)}</td>` +
       `<td>${escapeHtml(row.agent_role || "—")}${escalationBadge(row)}</td>` +
       `<td class="mono">${escapeHtml(row.model || "—")} · ${effortHtml(row.effort, row.effort_supported)}</td>` +
@@ -666,176 +563,13 @@ async function refreshActiveAgents() {
   renderActiveAgents();
 }
 
-// --- usage today ----------------------------------------------------------
-
-async function fetchUsageOverview() {
-  const totals = document.getElementById("usage-totals");
-  const byModel = document.getElementById("usage-by-model");
-  const empty = document.getElementById("usage-empty");
-  let usage;
-  try {
-    usage = await getJson("/api/observability/usage");
-  } catch (e) {
-    totals.innerHTML = "";
-    byModel.innerHTML = "";
-    empty.textContent = "Could not load today's usage: " + e.message;
-    empty.style.display = "block";
-    return;
-  }
-
-  document.getElementById("usage-date").textContent = usage.date ? "· " + usage.date : "";
-
-  if (!usage.runs) {
-    totals.innerHTML = "";
-    byModel.innerHTML = "";
-    empty.textContent = "No LLM call recorded today.";
-    empty.style.display = "block";
-    return;
-  }
-  empty.style.display = "none";
-
-  totals.innerHTML =
-    usageCell("LLM calls", String(usage.runs), usage.cards && usage.cards.length
-      ? escapeHtml(usage.cards.length + " card" + (usage.cards.length === 1 ? "" : "s"))
-      : "") +
-    usageCell("Total tokens", fmtTokens(usage.total_tokens),
-      `in ${fmtTokens(usage.input_tokens)} · out ${fmtTokens(usage.output_tokens)}`) +
-    usageCell("Cost", costHtml(usage.cost, usage.cost_source, usage.runs_missing_cost));
-
-  byModel.innerHTML = (usage.by_model || []).map(item =>
-    usageCell(modelLabel(item.model), fmtTokens(item.total_tokens),
-      `${item.runs} call${item.runs === 1 ? "" : "s"} · ` +
-      costHtml(item.cost, item.cost_source, item.runs_missing_cost))
-  ).join("");
-}
-
-// --- card detail ----------------------------------------------------------
-
-let openCardKey = null;
-
-function closeCardDetail() {
-  openCardKey = null;
-  document.getElementById("card-detail").hidden = true;
-}
-
-function cardMeta(key, usage, timeline) {
-  // What the card is doing *now* comes from the live registry; once nothing is
-  // running, the last finished run is the most recent thing known about it.
-  const live = liveRows.find(row => row.jira_issue_key === key);
-  const last = timeline.length ? timeline[timeline.length - 1] : null;
-  const source = live || last;
-  if (!source) {
-    return usageCell("Status", `<span class="muted">no run in the window</span>`);
-  }
-  const status = live ? "running" : (last.status || "finished");
-  return usageCell("Status",
-      `<span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>${escalationBadge(source)}`) +
-    usageCell("Current agent", escapeHtml(source.agent_role || "—")) +
-    usageCell("Model", `<span class="mono">${escapeHtml(source.model || "—")}</span>`,
-      "effort " + effortHtml(source.effort, source.effort_supported)) +
-    usageCell("Complexity", tierBadge(source.complexity_tier)) +
-    usageCell("Routing reason", `<span class="sub">${escapeHtml(source.routing_reason || "—")}</span>`);
-}
-
-/** Cards aggregate over runs, and only a run carries `cost_source`; a total is
- *  estimated when any run behind it was priced from our own table. */
-function aggregateCostSource(timeline) {
-  return timeline.some(run => run.cost_source === "estimated") ? "estimated" : null;
-}
-
-function renderCardDetail(key, usage, timeline) {
-  document.getElementById("card-detail-key").textContent = key;
-  const source = aggregateCostSource(timeline);
-
-  document.getElementById("card-detail-meta").innerHTML = cardMeta(key, usage, timeline);
-
-  document.getElementById("card-detail-totals").innerHTML =
-    usageCell("LLM calls", String(usage.runs || 0),
-      usage.threads && usage.threads.length
-        ? escapeHtml(usage.threads.length + " thread" + (usage.threads.length === 1 ? "" : "s"))
-        : "") +
-    usageCell("Input tokens", fmtTokens(usage.input_tokens)) +
-    usageCell("Output tokens", fmtTokens(usage.output_tokens)) +
-    usageCell("Total tokens", fmtTokens(usage.total_tokens),
-      usage.runs_missing_tokens ? escapeHtml(usage.runs_missing_tokens + " run(s) without tokens") : "") +
-    usageCell("Total cost", costHtml(usage.cost, source, usage.runs_missing_cost));
-
-  document.getElementById("card-detail-by-model").innerHTML = (usage.by_model || []).map(item =>
-    `<tr><td>${escapeHtml(modelLabel(item.model))} <span class="muted mono">${escapeHtml(item.model)}</span></td>` +
-    `<td>${item.runs}</td><td>${fmtTokens(item.total_tokens)}</td>` +
-    `<td>${costHtml(item.cost, source, item.runs_missing_cost)}</td></tr>`
-  ).join("");
-
-  document.getElementById("card-detail-by-agent").innerHTML = (usage.by_agent || []).map(item =>
-    `<tr><td>${escapeHtml(item.agent_role)}</td>` +
-    `<td>${item.runs}</td><td>${fmtTokens(item.total_tokens)}</td>` +
-    `<td>${costHtml(item.cost, source, item.runs_missing_cost)}</td></tr>`
-  ).join("");
-
-  document.getElementById("card-detail-timeline").innerHTML = timeline.map(run => {
-    const at = Date.parse(run.start_time || run.recorded_at || "");
-    const stamp = Number.isNaN(at)
-      ? "--:--"
-      : new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `<li><span class="ts">${escapeHtml(stamp)}</span>` +
-      `${escapeHtml(run.agent_role || "—")} · <span class="mono">${escapeHtml(run.model || "—")}</span> · ` +
-      `${fmtTokens(run.total_tokens)} tokens · ${costHtml(run.cost, run.cost_source, 0)} · ` +
-      `<span class="badge ${escapeHtml(run.status || "unknown")}">${escapeHtml(run.status || "unknown")}</span>` +
-      escalationBadge(run) + `</li>`;
-  }).join("");
-  document.getElementById("card-detail-timeline-empty").style.display = timeline.length ? "none" : "block";
-}
-
-async function openCardDetail(key) {
-  openCardKey = key;
-  const panel = document.getElementById("card-detail");
-  const loading = document.getElementById("card-detail-loading");
-  const body = document.getElementById("card-detail-body");
-  const error = document.getElementById("card-detail-error");
-
-  panel.hidden = false;
-  document.getElementById("card-detail-key").textContent = key;
-  loading.hidden = false;
-  body.hidden = true;
-  error.hidden = true;
-
-  // Lazily, and only for the card asked for: the usage endpoints aggregate on
-  // read, so they are not something to pull on every dashboard tick.
-  let usage, timeline;
-  try {
-    [usage, timeline] = await Promise.all([
-      getJson("/api/observability/cards/" + encodeURIComponent(key) + "/usage"),
-      getJson("/api/observability/cards/" + encodeURIComponent(key) + "/timeline"),
-    ]);
-  } catch (e) {
-    if (openCardKey !== key) return;
-    loading.hidden = true;
-    error.hidden = false;
-    error.textContent = "Could not load usage for " + key + ": " + e.message;
-    return;
-  }
-
-  if (openCardKey !== key) return;   // a second card was opened while we waited
-  renderCardDetail(key, usage, timeline.runs || []);
-  loading.hidden = true;
-  body.hidden = false;
-}
-
-function wireCardDetail() {
-  ["queue-body", "runs-body", "active-agents-body"].forEach(id => {
-    document.getElementById(id).addEventListener("click", event => {
-      if (event.target.closest("button[data-reset-card]")) return;
-      const row = event.target.closest("tr[data-card]");
-      if (row) openCardDetail(row.getAttribute("data-card"));
-    });
-  });
+function wireRunActions() {
   document.getElementById("runs-body").addEventListener("click", event => {
     const button = event.target.closest("button[data-reset-card]");
     if (!button) return;
     event.stopPropagation();
     resetCard(button.getAttribute("data-reset-card"), button);
   });
-  document.getElementById("card-detail-close").addEventListener("click", closeCardDetail);
 }
 
 async function resetCard(issueKey, button) {
@@ -861,7 +595,6 @@ async function resetCard(issueKey, button) {
     try { body = await res.json(); } catch (e) { body = {}; }
     if (!res.ok) throw new Error(body.error || "reset rejected (HTTP " + res.status + ")");
     setCfgStatus("ok", issueKey + " reset — waiting for the next live poll.", true);
-    closeCardDetail();
     await refresh();
   } catch (e) {
     setCfgStatus("error", "Could not reset " + issueKey + ": " + e.message);
@@ -1063,18 +796,16 @@ function wireConfigControls() {
 }
 
 wireConfigControls();
-wireCardDetail();
+wireRunActions();
 wireRecoveryForm();
 fetchConfig();
 refresh();
 setInterval(refresh, 2000);
 
-// The routing table changes only with a deploy, and today's totals move at the
-// pace of finished runs — neither belongs on the dashboard's 2s cycle.
+// The routing table changes only with a deploy, so it does not belong on the
+// dashboard's 2s cycle.
 fetchRoutingTable();
 setInterval(fetchRoutingTable, 60000);
-fetchUsageOverview();
-setInterval(fetchUsageOverview, 30000);
 </script>
 </body>
 </html>

@@ -10,6 +10,8 @@ def client():
     global_store._runs.clear()
     global_store._queue.clear()
     global_store._log.clear()
+    global_store._tick_log.clear()
+    global_store._agent_log.clear()
     global_store._last_tick_at = None
     flask_app.config.update(TESTING=True)
     with flask_app.test_client() as client:
@@ -32,6 +34,8 @@ def test_get_state_reflects_ingested_events(client) -> None:
 
     assert data["overall_status"] == "working"
     assert data["metrics"]["working"] == 1
+    assert data["tick_log"][0]["message"].startswith("tick:")
+    assert data["agent_log"][0]["message"].startswith("run SSAI-1:")
 
 
 def test_post_run_event_requires_issue_key_and_action(client) -> None:

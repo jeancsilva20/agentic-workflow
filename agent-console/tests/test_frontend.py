@@ -86,23 +86,16 @@ def test_observability_sections_are_rendered(page: str) -> None:
     for element_id in (
         "active-agents",
         "active-agents-body",
-        "usage-overview",
-        "usage-totals",
-        "usage-by-model",
-        "card-detail",
-        "card-detail-totals",
-        "card-detail-by-model",
-        "card-detail-by-agent",
-        "card-detail-timeline",
+        "tick-log",
+        "agent-log",
     ):
         assert f'id="{element_id}"' in page
-    for endpoint in (
-        '"/api/observability/live"',
-        '"/api/observability/usage"',
-        "/api/observability/cards/",
-    ):
-        assert endpoint in page
-    # Active agents sits between the queue summary cards and the run panels.
+    assert 'class="log-grid"' in page
+    assert "Usage today" not in page
+    assert ">Queue<" not in page
+    assert "Card detail" not in page
+    assert '"/api/observability/live"' in page
+    # Active agents sits before the run and split-log panels.
     assert page.index('class="metrics"') < page.index('id="active-agents"')
     assert page.index('id="active-agents"') < page.index('class="panels"')
 
@@ -134,13 +127,14 @@ def test_existing_dashboard_areas_are_preserved(page: str) -> None:
         "status-text",
         "m-working",
         "m-waiting",
-        "m-queued",
         "m-dead",
-        "queue-body",
         "runs-body",
-        "log",
+        "tick-log",
+        "agent-log",
     ):
         assert f'id="{element_id}"' in page
+    for removed_id in ("m-queued", "queue-body", "log", "usage-overview", "card-detail"):
+        assert f'id="{removed_id}"' not in page
 
 
 def test_page_talks_to_the_real_config_endpoints(client) -> None:

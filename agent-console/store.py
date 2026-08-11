@@ -44,13 +44,15 @@ class ConsoleStore:
         self._runs: dict[str, RunRecord] = {}
         self._queue: dict[str, float] = {}  # issue_key -> first_seen_at
         self._log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+        self._tick_log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+        self._agent_log: deque[dict[str, Any]] = deque(maxlen=_LOG_RING_BUFFER_SIZE)
 
     # --- ingest -------------------------------------------------------
 
     def record_tick(self, step_a: dict[str, Any], step_b: dict[str, Any]) -> None:
         with self._lock:
             self._last_tick_at = time.time()
-        self._append_log(f"tick: step_a={step_a} step_b={step_b}")
+        self._append_log(f"tick: step_a={step_a} step_b={step_b}", stream="tick")
 
     def record_run_event(self, issue_key: str, action: str, **extra: Any) -> None:
         now = time.time()
@@ -77,15 +79,15 @@ class ConsoleStore:
                 self._runs[issue_key] = RunRecord(
                     issue_key=issue_key, status="dead", reason=extra.get("reason")
                 )
-        self._append_log(f"run {issue_key}: {action} {extra}")
+        self._append_log(f"run {issue_key}: {action} {extra}", stream="agent")
 
     def record_queue_event(self, issue_key: str, **_extra: Any) -> None:
         with self._lock:
             self._queue.setdefault(issue_key, time.time())
-        self._append_log(f"queue: {issue_key}")
+        self._append_log(f"queue: {issue_key}", stream="agent")
 
     def record_log(self, message: str) -> None:
-        self._append_log(message)
+        self._append_log(message, stream="agent")
 
     def reset_run(self, issue_key: str) -> None:
         """Forget the console's live/queued view for one card.
@@ -97,11 +99,16 @@ class ConsoleStore:
         with self._lock:
             self._runs.pop(issue_key, None)
             self._queue.pop(issue_key, None)
-        self._append_log(f"run {issue_key}: reset")
+        self._append_log(f"run {issue_key}: reset", stream="agent")
 
-    def _append_log(self, message: str) -> None:
+    def _append_log(self, message: str, *, stream: str = "agent") -> None:
+        entry = {"at": time.time(), "message": message}
         with self._lock:
-            self._log.append({"at": time.time(), "message": message})
+            self._log.append(entry)
+            if stream == "tick":
+                self._tick_log.append(entry)
+            else:
+                self._agent_log.append(entry)
 
     # --- derive --------------------------------------------------------
 
@@ -111,6 +118,8 @@ class ConsoleStore:
             runs = list(self._runs.values())
             queue = dict(self._queue)
             log = list(self._log)[-100:]
+            tick_log = list(self._tick_log)[-100:]
+            agent_log = list(self._agent_log)[-100:]
 
         now = time.time()
         seconds_since_tick = (now - last_tick_at) if last_tick_at is not None else None
@@ -163,6 +172,8 @@ class ConsoleStore:
                 for r in sorted(runs, key=lambda r: r.updated_at, reverse=True)
             ],
             "log": log,
+            "tick_log": tick_log,
+            "agent_log": agent_log,
         }
 
 

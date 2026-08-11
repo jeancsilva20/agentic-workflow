@@ -494,219 +494,48 @@ test("active agents reports an empty live view rather than a blank table", async
   ui.close();
 });
 
-/** 19. Today's usage: calls, tokens and cost, split by model. */
-test("usage today shows calls, tokens and cost per model", async () => {
-  const ui = boot({
-    usage: {
-      ...EMPTY_USAGE,
-      runs: 3,
-      input_tokens: 1200,
-      output_tokens: 800,
-      total_tokens: 2000,
-      cost: 0.1234,
-      cards: ["SSAI-88"],
-      by_model: [
-        { model: "anthropic:claude-haiku-4-5", runs: 1, total_tokens: 500, cost: 0.0004, runs_missing_cost: 0 },
-        { model: "anthropic:claude-sonnet-5", runs: 1, total_tokens: 900, cost: 0.03, runs_missing_cost: 0 },
-        { model: "anthropic:claude-opus-4-5", runs: 1, total_tokens: 600, cost: 0.093, runs_missing_cost: 0 },
-      ],
-    },
-  });
-  await ui.settle();
-
-  const totals = ui.$("usage-totals").textContent;
-  assert.match(totals, /LLM calls/i);
-  assert.match(totals, /2,000/);
-  assert.match(totals, /\$0\.1234/);
-
-  const byModel = ui.$("usage-by-model").textContent;
-  for (const label of ["Haiku", "Sonnet", "Opus"]) assert.match(byModel, new RegExp(label));
-  assert.equal(ui.$("usage-empty").style.display, "none");
-  assert.match(ui.$("usage-date").textContent, /2026-08-10/);
-  ui.close();
-});
-
-/** 20. An unknown cost is never rendered as zero. */
-test("a missing cost reads as unavailable, never as $0.00", async () => {
-  const ui = boot({
-    usage: {
-      ...EMPTY_USAGE,
-      runs: 1,
-      total_tokens: 500,
-      cost: null,
-      runs_missing_cost: 1,
-      by_model: [
-        { model: "anthropic:claude-haiku-4-5", runs: 1, total_tokens: 500, cost: null, runs_missing_cost: 1 },
-      ],
-    },
-  });
-  await ui.settle();
-
-  const rendered = ui.$("usage-totals").textContent + ui.$("usage-by-model").textContent;
-  assert.match(rendered, /Cost unavailable/);
-  assert.ok(!/\$0\.0000/.test(rendered), "an unknown cost must not be printed as a number");
-  ui.close();
-});
-
-/** 21. Clicking a card opens its detail: totals, breakdowns and timeline. */
-test("clicking a run opens the card detail with usage and timeline", async () => {
-  const started = "2026-08-10T10:00:00+00:00";
-  const ui = boot({
-    state: {
-      ...EMPTY_STATE,
-      runs: [{ issue_key: "SSAI-88", status: "working", column: "Em Execução", time_parked_seconds: null }],
-    },
-    cardUsage: {
-      "SSAI-88": {
-        jira_issue_key: "SSAI-88",
-        runs: 2,
-        input_tokens: 1200,
-        output_tokens: 800,
-        total_tokens: 2000,
-        runs_missing_tokens: 0,
-        cost: 0.25,
-        runs_missing_cost: 0,
-        threads: ["thread-1"],
-        by_agent: [{ agent_role: "coding_agent", runs: 2, total_tokens: 2000, cost: 0.25, runs_missing_cost: 0 }],
-        by_model: [{ model: "anthropic:claude-sonnet-5", runs: 2, total_tokens: 2000, cost: 0.25, runs_missing_cost: 0 }],
-        first_run_at: started,
-        last_run_at: started,
-      },
-    },
-    cardTimeline: {
-      "SSAI-88": [
-        {
-          run_id: "run-1",
-          status: "success",
-          recorded_at: started,
-          jira_issue_key: "SSAI-88",
-          thread_id: "thread-1",
-          agent_role: "spec_author",
-          model: "anthropic:claude-sonnet-5",
-          effort: "high",
-          complexity_tier: "medium",
-          routing_reason: "spec_author default route",
-          escalation_reason: null,
-          start_time: started,
-          input_tokens: 600,
-          output_tokens: 400,
-          total_tokens: 1000,
-          cost: 0.1,
-          cost_source: "langsmith",
-        },
-      ],
-    },
-  });
-  await ui.settle();
-
-  assert.equal(ui.$("card-detail").hidden, true, "the detail stays closed until a card is clicked");
-
-  ui.click(ui.$("runs-body").querySelector("tr[data-card]"));
-  await ui.settle();
-
-  assert.equal(ui.$("card-detail").hidden, false);
-  assert.equal(ui.$("card-detail-key").textContent, "SSAI-88");
-  assert.equal(ui.$("card-detail-loading").hidden, true);
-  assert.equal(ui.$("card-detail-body").hidden, false);
-
-  assert.match(ui.$("card-detail-totals").textContent, /2,000/);
-  assert.match(ui.$("card-detail-totals").textContent, /\$0\.2500/);
-  assert.match(ui.$("card-detail-by-model").textContent, /Sonnet/);
-  assert.match(ui.$("card-detail-by-agent").textContent, /coding_agent/);
-
-  const timeline = ui.$("card-detail-timeline").querySelectorAll("li");
-  assert.equal(timeline.length, 1);
-  assert.match(timeline[0].textContent, /spec_author/);
-  assert.match(timeline[0].textContent, /claude-sonnet-5/);
-  assert.match(timeline[0].textContent, /1,000 tokens/);
-  assert.match(timeline[0].textContent, /\$0\.1000/);
-  assert.match(timeline[0].textContent, /success/);
-
-  ui.click(ui.$("card-detail-close"));
-  assert.equal(ui.$("card-detail").hidden, true);
-  ui.close();
-});
-
-/** 22. A card total priced from our own table is labelled as an estimate. */
-test("a card total backed by estimated pricing says so", async () => {
-  const ui = boot({
-    state: { ...EMPTY_STATE, queue: [{ issue_key: "SSAI-90", waiting_seconds: 10 }] },
-    cardUsage: {
-      "SSAI-90": {
-        jira_issue_key: "SSAI-90",
-        runs: 1,
-        input_tokens: 100,
-        output_tokens: 100,
-        total_tokens: 200,
-        runs_missing_tokens: 0,
-        cost: 0.02,
-        runs_missing_cost: 0,
-        threads: ["thread-9"],
-        by_agent: [],
-        by_model: [],
-        first_run_at: null,
-        last_run_at: null,
-      },
-    },
-    cardTimeline: {
-      "SSAI-90": [
-        {
-          run_id: "run-9",
-          status: "success",
-          recorded_at: "2026-08-10T11:00:00+00:00",
-          agent_role: "docs_agent",
-          model: "anthropic:claude-haiku-4-5",
-          effort: null,
-          complexity_tier: "low",
-          routing_reason: "docs_agent default route",
-          start_time: "2026-08-10T11:00:00+00:00",
-          total_tokens: 200,
-          cost: 0.02,
-          cost_source: "estimated",
-        },
-      ],
-    },
-  });
-  await ui.settle();
-
-  ui.click(ui.$("queue-body").querySelector("tr[data-card]"));
-  await ui.settle();
-
-  assert.match(ui.$("card-detail-totals").textContent, /Estimated \$0\.0200/);
-  assert.ok(ui.$("card-detail-totals").querySelector(".cost-estimated"));
-  ui.close();
-});
-
-/** 23. The detail panel says it is loading before the numbers arrive. */
-test("the card detail shows a loading state while it fetches", async () => {
-  const ui = boot({
-    state: { ...EMPTY_STATE, queue: [{ issue_key: "SSAI-91", waiting_seconds: 5 }] },
-  });
-  await ui.settle();
-
-  ui.click(ui.$("queue-body").querySelector("tr[data-card]"));
-
-  assert.equal(ui.$("card-detail").hidden, false);
-  assert.equal(ui.$("card-detail-loading").hidden, false);
-  assert.equal(ui.$("card-detail-body").hidden, true);
-
-  // The stub answers 500 for a card it does not know: the failure is reported,
-  // not left spinning.
-  await ui.settle();
-  assert.equal(ui.$("card-detail-loading").hidden, true);
-  assert.equal(ui.$("card-detail-error").hidden, false);
-  assert.match(ui.$("card-detail-error").textContent, /SSAI-91/);
-  ui.close();
-});
-
-/** 24. Observability polls on its own cadence, not on the dashboard's. */
-test("routing and usage are fetched once on load, not on every dashboard tick", async () => {
+/** 19. Removed observability panels stay out of the lightweight dashboard. */
+test("removed usage and card detail views are not fetched or rendered", async () => {
   const ui = boot();
   await ui.settle();
 
   const count = (url) => ui.gets.filter((u) => u === url).length;
   assert.equal(count("/api/config/routing"), 1);
-  assert.equal(count("/api/observability/usage"), 1);
+  assert.equal(count("/api/observability/usage"), 0);
+  assert.equal(ui.$("usage-overview"), null);
+  assert.equal(ui.$("card-detail"), null);
+  ui.close();
+});
+
+/** 20. Tick and agent activity are rendered in separate streams. */
+test("tick and agent logs render in separate columns", async () => {
+  const ui = boot({
+    state: {
+      ...EMPTY_STATE,
+      tick_log: [{ at: 1700000000, message: "tick: step_a={'launched': 1}" }],
+      agent_log: [{ at: 1700000001, message: "run SSAI-88: launched {}" }],
+    },
+  });
+  await ui.settle();
+
+  assert.match(ui.$("tick-log").textContent, /step_a/);
+  assert.doesNotMatch(ui.$("tick-log").textContent, /SSAI-88/);
+  assert.match(ui.$("agent-log").textContent, /SSAI-88/);
+  assert.doesNotMatch(ui.$("agent-log").textContent, /step_a/);
+  assert.equal(ui.$("tick-log-empty").style.display, "none");
+  assert.equal(ui.$("agent-log-empty").style.display, "none");
+  ui.close();
+});
+
+/** 21. The lightweight dashboard only polls live agent state. */
+test("routing is fetched once and removed observability is never polled", async () => {
+  const ui = boot();
+  await ui.settle();
+
+  const count = (url) => ui.gets.filter((u) => u === url).length;
+  assert.equal(count("/api/config/routing"), 1);
+  assert.equal(count("/api/observability/usage"), 0);
+  assert.equal(count("/api/observability/cards/SSAI-88/usage"), 0);
   // The live view rides the dashboard cycle instead of opening its own.
   assert.equal(count("/api/observability/live"), count("/api/state"));
   ui.close();
@@ -739,9 +568,9 @@ test("existing dashboard areas still render", async () => {
       overall_status: "working",
       poller: { last_tick_at: 1, seconds_since_tick: 3, healthy: true },
       metrics: { working: 1, waiting: 2, queued: 3, dead: 4 },
-      queue: [{ issue_key: "SSAI-1", waiting_seconds: 12 }],
       runs: [{ issue_key: "SSAI-2", status: "waiting", column: "In Progress", time_parked_seconds: 30 }],
-      log: [{ at: 1700000000, message: "[shadow] would trigger SSAI-88" }],
+      tick_log: [{ at: 1700000000, message: "[shadow] would trigger SSAI-88" }],
+      agent_log: [{ at: 1700000001, message: "run SSAI-2: parked {}" }],
     },
   });
   await ui.settle();
@@ -749,8 +578,9 @@ test("existing dashboard areas still render", async () => {
   assert.equal(ui.$("status-text").textContent, "working");
   assert.equal(ui.$("m-working").textContent, "1");
   assert.equal(ui.$("m-dead").textContent, "4");
-  assert.match(ui.$("queue-body").textContent, /SSAI-1/);
   assert.match(ui.$("runs-body").textContent, /SSAI-2/);
-  assert.match(ui.$("log").textContent, /\[shadow\] would trigger SSAI-88/);
+  assert.match(ui.$("tick-log").textContent, /\[shadow\] would trigger SSAI-88/);
+  assert.match(ui.$("agent-log").textContent, /SSAI-2/);
+  assert.equal(ui.$("m-queued"), null);
   ui.close();
 });
