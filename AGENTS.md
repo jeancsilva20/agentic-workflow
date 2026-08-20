@@ -2,6 +2,10 @@
 
 This file provides guidance to Coding Agents when working with code in this repository.
 
+## Memory Bank
+
+Documentação estruturada do sistema por agente e por camada em [`memory-bank/`](memory-bank/). Cada agente é documentado com objetivo, intenção, resultado, fluxo de entrada/saída, conexões e ferramentas. Veja `memory-bank/projectbrief.md` para a visão geral.
+
 ## Project
 
 Open SWE is an open-source coding-agent framework built on **LangGraph** + **Deep Agents** (`deepagents.create_deep_agent`). It runs as a LangGraph app: each thread spawns its own isolated cloud sandbox, and the agent is invoked from Slack, Linear, or GitHub (PR comments, plus auto-review on opened / ready-for-review).

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "memory-bank/projectbrief.md",
+    "memory-bank/productContext.md",
+    "memory-bank/systemPatterns.md",
+    "memory-bank/techContext.md",
+    "memory-bank/activeContext.md",
+    "memory-bank/progress.md",
+    "memory-bank/agents/main-agent.md",
+    "memory-bank/agents/reviewer.md",
+    "memory-bank/agents/analyzer.md",
+    "memory-bank/agents/chat.md",
+    "memory-bank/agents/scheduler.md",
+    "memory-bank/camadas/middleware.md",
+    "memory-bank/camadas/tools.md",
+    "memory-bank/camadas/routing.md",
+    "memory-bank/camadas/dashboard-console.md",
+    "memory-bank/camadas/webhooks.md",
+    "memory-bank/camadas/sandbox.md"
+  ]
+}
