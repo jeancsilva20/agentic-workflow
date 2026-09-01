@@ -1,0 +1,268 @@
+"AuthenticationError("Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'API key is invalid.'}, 'request_id': None}")Traceback (most recent call last):
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/main.py", line 3440, in astream
+    async for _ in runner.atick(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_runner.py", line 396, in atick
+    await arun_with_retry(
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/pregel/_retry.py", line 744, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 733, in ainvoke
+    input = await asyncio.create_task(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 501, in ainvoke
+    ret = await self.afunc(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 1498, in amodel_node
+    result = await awrap_model_call_handler(request, _execute_model_async)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/deepagents/middleware/skills.py", line 1050, in awrap_model_call
+    return await handler(modified_request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/deepagents/middleware/filesystem.py", line 2865, in awrap_model_call
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/deepagents/middleware/subagents.py", line 742, in awrap_model_call
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/deepagents/middleware/summarization.py", line 1515, in awrap_model_call
+    return await handler(request.override(messages=truncated_messages))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/prepare_run.py", line 94, in awrap_model_call
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/refresh_slack_status.py", line 188, in awrap_model_call
+    return await self._run_with_heartbeat(status, handler(request))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/refresh_slack_status.py", line 216, in _run_with_heartbeat
+    return await awaitable
+           ^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/timeout_wrapup.py", line 109, in awrap_model_call
+    return await handler(self._apply(request))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/plan_mode.py", line 81, in awrap_model_call
+    return await handler(self._filter(request))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/sanitize_fireworks_messages.py", line 73, in awrap_model_call
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/sanitize_thinking_blocks.py", line 58, in awrap_model_call
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 402, in composed
+    outer_result = await outer(request, inner_handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/agent/middleware/model_call_timeout.py", line 57, in awrap_model_call
+    return await asyncio.wait_for(handler(request), timeout=self._timeout_seconds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/nix/store/6334pjf6w2q623rgvwi499qaiym1p6yv-python3-3.11.14/lib/python3.11/asyncio/tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 392, in inner_handler
+    inner_result = await inner(req, handler)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_anthropic/middleware/prompt_caching.py", line 189, in awrap_model_call
+    return await handler(self._apply_caching(request))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain/agents/factory.py", line 1467, in _execute_model_async
+    output = await model_.ainvoke(messages)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 6015, in ainvoke
+    return await self.bound.ainvoke(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 499, in ainvoke
+    llm_result = await self.agenerate_prompt(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1860, in agenerate_prompt
+    return await self.agenerate(
+           ^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1818, in agenerate
+    raise exceptions[0]
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 2151, in _agenerate_with_cache
+    result = await self._agenerate(
+             ^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_anthropic/chat_models.py", line 1982, in _agenerate
+    data = await self._acreate(payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/langchain_anthropic/chat_models.py", line 1603, in _acreate
+    return await self._async_client.messages.create(**payload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/anthropic/resources/messages/messages.py", line 2543, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/anthropic/_base_client.py", line 2276, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/anthropic/_base_client.py", line 1941, in request
+    raise self._make_status_error_from_response(response) from None
+
+
+anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'API key is invalid.'}, 'request_id': None}
+
+
+During task with name 'model' and id '08708a17-2611-40c8-6954-11888071688c'"
