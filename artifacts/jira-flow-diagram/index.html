@@ -1,0 +1,1873 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jira agêntico · mapa operacional</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ddd8f1'/%3E%3Cpath d='M9 16h14M16 9v14' stroke='%235a4d85' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --paper: #f6f3f8;
+        --paper-deep: #eeebf3;
+        --ink: #25242d;
+        --muted: #777380;
+        --line: #d8d3df;
+        --line-strong: #bbb4c7;
+        --human: #f2dfcc;
+        --human-ink: #845c3b;
+        --agent: #ddd8f1;
+        --agent-ink: #5a4d85;
+        --system: #d5e6df;
+        --system-ink: #3d6d5d;
+        --reviewer: #dce4ef;
+        --reviewer-ink: #4b6281;
+        --gate: #f3e5b9;
+        --gate-ink: #8c6d30;
+        --github: #e4e0e8;
+        --danger: #ead0d1;
+        --danger-ink: #944e55;
+        --shadow:
+          0 12px 35px rgba(70, 59, 86, 0.08), 0 2px 5px rgba(70, 59, 86, 0.05);
+        --radius: 13px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        min-width: 320px;
+        background: var(--paper);
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        color: var(--ink);
+        background:
+          radial-gradient(
+            circle at 88% 4%,
+            rgba(224, 214, 237, 0.55),
+            transparent 27rem
+          ),
+          radial-gradient(
+            circle at 8% 82%,
+            rgba(217, 232, 224, 0.28),
+            transparent 24rem
+          ),
+          var(--paper);
+        font-family: "Avenir Next", "Gill Sans", "Segoe UI", sans-serif;
+        letter-spacing: 0.005em;
+      }
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.25;
+        background-image: radial-gradient(
+          rgba(55, 44, 71, 0.17) 0.55px,
+          transparent 0.55px
+        );
+        background-size: 5px 5px;
+        mix-blend-mode: multiply;
+      }
+      button {
+        font: inherit;
+      }
+      .shell {
+        width: min(1500px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 29px 0 36px;
+      }
+      .topline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 22px;
+      }
+      .eyebrow {
+        margin: 0 0 9px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.19em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        max-width: 760px;
+        font-size: clamp(26px, 3.2vw, 48px);
+        font-weight: 670;
+        letter-spacing: -0.055em;
+        line-height: 0.98;
+      }
+      .intro {
+        max-width: 690px;
+        margin: 14px 0 0;
+        color: #6d6875;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .intro strong {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .meta {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding-top: 2px;
+        color: var(--muted);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .meta .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #7caa95;
+        box-shadow: 0 0 0 4px rgba(124, 170, 149, 0.14);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 276px;
+        gap: 14px;
+        margin-top: 27px;
+        align-items: stretch;
+      }
+      .diagram-card,
+      .conditions {
+        border: 1px solid rgba(187, 180, 199, 0.75);
+        background: rgba(250, 248, 251, 0.77);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+      .diagram-card {
+        min-width: 0;
+        overflow: hidden;
+        border-radius: 17px;
+      }
+      .diagram-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(216, 211, 223, 0.85);
+        background: rgba(244, 240, 247, 0.65);
+      }
+      .diagram-head p {
+        margin: 0;
+        color: #686370;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .diagram-head p b {
+        color: var(--ink);
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .control {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 28px;
+        cursor: pointer;
+        border: 1px solid #d5cfdb;
+        border-radius: 7px;
+        color: #625a6d;
+        background: #faf8fb;
+        font-size: 15px;
+        transition:
+          background 0.18s ease,
+          border-color 0.18s ease,
+          transform 0.18s ease;
+      }
+      .control:hover {
+        border-color: #a89eb4;
+        background: #f1edf5;
+        transform: translateY(-1px);
+      }
+      .zoom-readout {
+        min-width: 45px;
+        color: #7b7483;
+        font-family: monospace;
+        font-size: 10px;
+        text-align: center;
+      }
+      .diagram-viewport {
+        position: relative;
+        height: min(67vw, 725px);
+        min-height: 470px;
+        overflow: hidden;
+        cursor: grab;
+        background:
+          linear-gradient(rgba(112, 102, 127, 0.055) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(112, 102, 127, 0.055) 1px,
+            transparent 1px
+          ),
+          #f8f6fa;
+        background-size: 28px 28px;
+      }
+      .diagram-viewport:active {
+        cursor: grabbing;
+      }
+      .diagram-viewport::before {
+        content: "FLUXO OPERACIONAL · T(SSAI-XXXX)";
+        position: absolute;
+        z-index: 2;
+        top: 16px;
+        left: 19px;
+        color: #a29ba9;
+        font-family: monospace;
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        pointer-events: none;
+      }
+      #flowSvg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        user-select: none;
+        touch-action: none;
+      }
+      .flow-group {
+        transition: opacity 0.25s ease;
+      }
+      .flow-group.dimmed {
+        opacity: 0.18;
+      }
+      .flow-node {
+        cursor: pointer;
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s ease;
+      }
+      .flow-node:hover .node-plate {
+        stroke: #8f839b;
+        stroke-width: 1.8;
+      }
+      .flow-node.selected .node-plate {
+        stroke: #6e5c84;
+        stroke-width: 2.2;
+      }
+      .node-plate {
+        fill: #fbf9fc;
+        stroke: #d6d0dc;
+        stroke-width: 1.1;
+        filter: drop-shadow(0 4px 5px rgba(62, 51, 75, 0.07));
+      }
+      .node-code {
+        fill: #928a99;
+        font:
+          700 9px "SFMono-Regular",
+          Consolas,
+          monospace;
+        letter-spacing: 0.09em;
+      }
+      .node-title {
+        fill: #2a2731;
+        font:
+          700 13px "Avenir Next",
+          "Segoe UI",
+          sans-serif;
+      }
+      .node-copy {
+        fill: #77717e;
+        font:
+          10px "Avenir Next",
+          "Segoe UI",
+          sans-serif;
+      }
+      .node-tag {
+        font:
+          700 8px "SFMono-Regular",
+          Consolas,
+          monospace;
+        letter-spacing: 0.09em;
+      }
+      .lane-title {
+        font:
+          800 10px "SFMono-Regular",
+          Consolas,
+          monospace;
+        letter-spacing: 0.17em;
+      }
+      .lane-sub {
+        font:
+          10px "Avenir Next",
+          "Segoe UI",
+          sans-serif;
+      }
+      .connector {
+        fill: none;
+        stroke: #aaa2b0;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .connector.soft {
+        stroke: #c4bcca;
+        stroke-dasharray: 4 5;
+      }
+      .connector.human {
+        stroke: #ba8d6a;
+        stroke-dasharray: 4 4;
+      }
+      .connector.loop {
+        stroke: #b5858a;
+        stroke-dasharray: 5 5;
+      }
+      .connector-label {
+        fill: #8c8491;
+        font:
+          9px "SFMono-Regular",
+          Consolas,
+          monospace;
+        letter-spacing: 0.025em;
+      }
+      .gate-disc {
+        fill: #fffaf0;
+        stroke: #d8bd76;
+        stroke-width: 1.5;
+        filter: drop-shadow(0 3px 4px rgba(125, 97, 35, 0.11));
+      }
+      .gate-number {
+        fill: #967638;
+        font:
+          800 11px "SFMono-Regular",
+          Consolas,
+          monospace;
+        text-anchor: middle;
+      }
+      .gate-caption {
+        fill: #806830;
+        font:
+          700 8px "SFMono-Regular",
+          Consolas,
+          monospace;
+        letter-spacing: 0.08em;
+        text-anchor: middle;
+      }
+      .icon-square {
+        stroke: none;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px 16px;
+        padding: 12px 16px 13px;
+        border-top: 1px solid rgba(216, 211, 223, 0.8);
+        color: #6c6672;
+        font-size: 10px;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .legend-mark {
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+      }
+      .legend-mark.human {
+        background: var(--human);
+        border-color: #d6b28e;
+      }
+      .legend-mark.agent {
+        background: var(--agent);
+        border-color: #aaa0d3;
+      }
+      .legend-mark.reviewer {
+        background: var(--reviewer);
+        border-color: #aabbd2;
+      }
+      .legend-mark.system {
+        background: var(--system);
+        border-color: #a0c7b8;
+      }
+      .legend-mark.gate {
+        border-radius: 50%;
+        background: var(--gate);
+        border-color: #d8bd76;
+      }
+
+      .conditions {
+        border-radius: 15px;
+        padding: 19px 17px 16px;
+      }
+      .conditions-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .conditions h2 {
+        margin: 0;
+        font-size: 15px;
+        letter-spacing: -0.02em;
+      }
+      .conditions-header span {
+        color: #a098a7;
+        font-family: monospace;
+        font-size: 9px;
+      }
+      .conditions > p {
+        margin: 10px 0 17px;
+        color: #77717e;
+        font-size: 11px;
+        line-height: 1.48;
+      }
+      .condition {
+        padding: 12px 0 13px;
+        border-top: 1px solid #e0dbe4;
+      }
+      .condition:first-of-type {
+        border-top: 0;
+      }
+      .condition-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .condition strong {
+        font-size: 11px;
+        font-weight: 750;
+      }
+      .condition-value {
+        color: #766d7e;
+        font-family: monospace;
+        font-size: 10px;
+      }
+      .condition p {
+        margin: 6px 0 0;
+        color: #827b87;
+        font-size: 10px;
+        line-height: 1.42;
+      }
+      .bar {
+        height: 3px;
+        margin-top: 9px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: #e7e2e9;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: #a998c8;
+      }
+      .bar.green i {
+        background: #83ac9b;
+      }
+      .bar.gold i {
+        background: #caa765;
+      }
+      .stop-note {
+        margin-top: 14px;
+        padding: 11px;
+        border: 1px solid #ddc7c9;
+        border-radius: 9px;
+        color: #895b61;
+        background: #f7e9e8;
+        font-size: 10px;
+        line-height: 1.45;
+      }
+      .stop-note b {
+        display: block;
+        margin-bottom: 4px;
+        font-family: monospace;
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .status-section {
+        margin-top: 14px;
+        border: 1px solid rgba(187, 180, 199, 0.72);
+        border-radius: 15px;
+        background: rgba(250, 248, 251, 0.64);
+        box-shadow: var(--shadow);
+      }
+      .status-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px 10px;
+      }
+      .status-head h2 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: -0.02em;
+      }
+      .status-head p {
+        margin: 0;
+        color: #89818e;
+        font-size: 10px;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(11, minmax(96px, 1fr));
+        gap: 7px;
+        padding: 0 12px 13px;
+        overflow-x: auto;
+      }
+      .status {
+        min-height: 66px;
+        padding: 9px 9px 8px;
+        border-top: 2px solid #c4bdca;
+        border-radius: 7px;
+        background: rgba(242, 239, 245, 0.82);
+      }
+      .status:nth-child(1),
+      .status:nth-child(3),
+      .status:nth-child(6),
+      .status:nth-child(9) {
+        border-top-color: #c49c70;
+        background: rgba(248, 241, 232, 0.75);
+      }
+      .status:nth-child(4),
+      .status:nth-child(5),
+      .status:nth-child(7),
+      .status:nth-child(8),
+      .status:nth-child(10) {
+        border-top-color: #aaa0d3;
+      }
+      .status:nth-child(11) {
+        border-top-color: #87b19f;
+        background: rgba(236, 244, 240, 0.82);
+      }
+      .status-no {
+        color: #9b939f;
+        font: 700 9px monospace;
+      }
+      .status-name {
+        display: block;
+        min-height: 28px;
+        margin-top: 5px;
+        color: #46404d;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+      .status-owner {
+        color: #8c8491;
+        font-size: 9px;
+      }
+      .footnote {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 14px;
+        color: #8a828f;
+        font:
+          10px/1.45 "SFMono-Regular",
+          Consolas,
+          monospace;
+      }
+      .footnote span:last-child {
+        color: #6e6577;
+      }
+
+      @media (max-width: 980px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+        .conditions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          column-gap: 20px;
+        }
+        .conditions-header,
+        .conditions > p {
+          grid-column: 1 / -1;
+        }
+        .stop-note {
+          grid-column: 1 / -1;
+        }
+        .diagram-viewport {
+          height: 69vw;
+        }
+      }
+      @media (max-width: 620px) {
+        .shell {
+          width: min(100% - 22px, 1500px);
+          padding-top: 20px;
+        }
+        .topline {
+          display: block;
+        }
+        .meta {
+          margin-top: 16px;
+        }
+        .workspace {
+          margin-top: 20px;
+        }
+        .diagram-head {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 11px;
+        }
+        .diagram-viewport {
+          height: 120vw;
+          min-height: 500px;
+        }
+        .conditions {
+          display: block;
+        }
+        .status-head {
+          display: block;
+        }
+        .status-head p {
+          margin-top: 5px;
+        }
+        .footnote {
+          display: block;
+        }
+        .footnote span {
+          display: block;
+          margin-top: 6px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topline">
+        <div>
+          <p class="eyebrow">Open SWE · operação Jira</p>
+          <h1>Um card. Uma thread.<br />Vários runs — três decisões.</h1>
+          <p class="intro">
+            Mapa operacional do fluxo agêntico
+            <strong>Human-in-the-Loop</strong>. O mesmo deep agent retoma a
+            thread determinística <strong>T(SSAI-XXXX)</strong> a cada mudança
+            humana; o reviewer graph existe ao lado, apenas para avaliar uma PR
+            real.
+          </p>
+        </div>
+        <div class="meta"><i class="dot"></i> fluxo canônico · 11 estados</div>
+      </header>
+
+      <section
+        class="workspace"
+        aria-label="Mapa operacional e condições de parada"
+      >
+        <section class="diagram-card">
+          <div class="diagram-head">
+            <p>
+              <b>Fluxo ponta a ponta</b><br />Arraste para explorar · use a roda
+              para aproximar
+            </p>
+            <div class="controls" aria-label="Controles do mapa">
+              <button
+                class="control"
+                id="zoomOut"
+                type="button"
+                aria-label="Reduzir zoom"
+              >
+                −
+              </button>
+              <span class="zoom-readout" id="zoomReadout">100%</span>
+              <button
+                class="control"
+                id="zoomIn"
+                type="button"
+                aria-label="Aumentar zoom"
+              >
+                +
+              </button>
+              <button
+                class="control"
+                id="reset"
+                type="button"
+                aria-label="Restaurar vista"
+              >
+                ↺
+              </button>
+            </div>
+          </div>
+          <div class="diagram-viewport" id="viewport">
+            <svg
+              id="flowSvg"
+              viewBox="0 0 1500 875"
+              role="img"
+              aria-labelledby="flowTitle flowDesc"
+            >
+              <title id="flowTitle">
+                Fluxo Jira agêntico com três gates humanos
+              </title>
+              <desc id="flowDesc">
+                Card em Backlog passa pelo agente principal, revisão de spec,
+                implementação, reviewer graph, revisão de código, pré-merge e
+                fechamento administrativo. Loops de ajuste retornam pela mesma
+                thread, branch e PR.
+              </desc>
+              <defs>
+                <marker
+                  id="arrow"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="7"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#aaa2b0" />
+                </marker>
+                <marker
+                  id="arrowHuman"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="7"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#ba8d6a" />
+                </marker>
+                <marker
+                  id="arrowLoop"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="7"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#b5858a" />
+                </marker>
+              </defs>
+
+              <!-- lane framing -->
+              <g class="lane-frame">
+                <rect
+                  x="30"
+                  y="55"
+                  width="286"
+                  height="755"
+                  rx="16"
+                  fill="#f4eee8"
+                  fill-opacity=".62"
+                  stroke="#e2d8d0"
+                />
+                <rect
+                  x="335"
+                  y="55"
+                  width="510"
+                  height="755"
+                  rx="16"
+                  fill="#efebf7"
+                  fill-opacity=".57"
+                  stroke="#ddd6e9"
+                />
+                <rect
+                  x="863"
+                  y="55"
+                  width="232"
+                  height="755"
+                  rx="16"
+                  fill="#edf2f5"
+                  fill-opacity=".66"
+                  stroke="#d8e0e7"
+                />
+                <rect
+                  x="1112"
+                  y="55"
+                  width="354"
+                  height="755"
+                  rx="16"
+                  fill="#eff3f1"
+                  fill-opacity=".63"
+                  stroke="#d8e2dc"
+                />
+                <text x="53" y="87" class="lane-title" fill="#8c694d">
+                  HUMANO
+                </text>
+                <text x="53" y="103" class="lane-sub" fill="#a07e64">
+                  decide · não delega
+                </text>
+                <text x="358" y="87" class="lane-title" fill="#66568b">
+                  AGENTE PRINCIPAL
+                </text>
+                <text x="358" y="103" class="lane-sub" fill="#7b6d9c">
+                  graph agent · mesma thread
+                </text>
+                <text x="886" y="87" class="lane-title" fill="#59718e">
+                  REVIEWER GRAPH
+                </text>
+                <text x="886" y="103" class="lane-sub" fill="#71849d">
+                  separado · só PR real
+                </text>
+                <text x="1135" y="87" class="lane-title" fill="#4b7766">
+                  JIRA / POLLER + GITHUB
+                </text>
+                <text x="1135" y="103" class="lane-sub" fill="#6c8d7f">
+                  determinístico · observa e retoma
+                </text>
+              </g>
+
+              <!-- connectors behind nodes -->
+              <g class="connectors">
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M177 180 V218 H422"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M533 265 V305"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M644 351 H771"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M882 310 H927"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1039 310 H1140 V227"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1258 267 V322 H1324"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1403 365 V420 H1268"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1207 452 V517"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1267 564 H1352 V649"
+                />
+                <path
+                  class="connector"
+                  marker-end="url(#arrow)"
+                  d="M1398 688 V735 H1286"
+                />
+                <!-- human decisions -->
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 270 H286 V218 H422"
+                />
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 270 H286 V358 H422"
+                />
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 490 H286 V310 H771"
+                />
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 490 H286 V556 H771"
+                />
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 694 H286 V735 H1140"
+                />
+                <path
+                  class="connector human"
+                  marker-end="url(#arrowHuman)"
+                  d="M246 694 H286 V785 H1140"
+                />
+                <!-- review branch -->
+                <path
+                  class="connector soft"
+                  marker-end="url(#arrow)"
+                  d="M644 340 H806 V185 H927"
+                />
+                <path
+                  class="connector soft"
+                  marker-end="url(#arrow)"
+                  d="M1039 185 H1080 V310 H1039"
+                />
+                <path
+                  class="connector loop"
+                  marker-end="url(#arrowLoop)"
+                  d="M927 245 V390 H644"
+                />
+                <path
+                  class="connector loop"
+                  marker-end="url(#arrowLoop)"
+                  d="M771 556 H695 V340"
+                />
+                <!-- parking/run boundaries -->
+                <path
+                  class="connector soft"
+                  marker-end="url(#arrow)"
+                  d="M771 382 H744 V430 H286"
+                />
+                <path
+                  class="connector soft"
+                  marker-end="url(#arrow)"
+                  d="M771 605 H744 V650 H286"
+                />
+                <path
+                  class="connector soft"
+                  marker-end="url(#arrow)"
+                  d="M1140 700 H1080 V735 H286"
+                />
+                <!-- same branch and thread annotations -->
+                <path class="connector soft" d="M570 180 V156 H1324 V180" />
+                <path class="connector soft" d="M570 585 V620 H1324 V585" />
+              </g>
+
+              <g class="labels">
+                <text x="289" y="211" class="connector-label">
+                  poller lança run
+                </text>
+                <text x="252" y="206" class="connector-label">BACKLOG</text>
+                <text x="287" y="350" class="connector-label">feedback →</text>
+                <text x="286" y="300" class="connector-label">aprovado →</text>
+                <text x="288" y="548" class="connector-label">aprovado →</text>
+                <text x="287" y="642" class="connector-label">
+                  merge no GitHub
+                </text>
+                <text x="721" y="378" class="connector-label">
+                  run encerra · parked
+                </text>
+                <text x="727" y="647" class="connector-label">
+                  findings → mesma PR
+                </text>
+                <text x="935" y="378" class="connector-label">
+                  CHANGES_REQUIRED
+                </text>
+                <text x="1086" y="150" class="connector-label">
+                  PASS sem bloqueio
+                </text>
+                <text x="702" y="151" class="connector-label">
+                  T(SSAI-XXXX) · branch feat/spec-JIRA-XXXX-*
+                </text>
+                <text x="705" y="615" class="connector-label">
+                  mesma branch · mesma PR
+                </text>
+                <text x="1080" y="726" class="connector-label">
+                  state=merged confirmado
+                </text>
+              </g>
+
+              <!-- human lane -->
+              <g class="flow-group" data-family="human">
+                <g
+                  class="flow-node"
+                  data-node="human-start"
+                  transform="translate(67 130)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="220"
+                    height="50"
+                    rx="10"
+                    fill="#fcf5ed"
+                    stroke="#d6b99c"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="15"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#efd9c1"
+                  />
+                  <path
+                    d="M18 20h7v7h-7z M19 18v3 M24 18v3"
+                    fill="none"
+                    stroke="#8d694e"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="21" class="node-code">H0 · INTAKE</text>
+                  <text x="42" y="37" class="node-title">
+                    Cria ou registra o card
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="gate-1"
+                  transform="translate(102 218)"
+                >
+                  <circle class="gate-disc" cx="75" cy="52" r="38" />
+                  <text x="75" y="48" class="gate-number">GATE 1</text>
+                  <text x="75" y="62" class="gate-caption">SPEC</text>
+                  <text x="75" y="106" class="node-copy" text-anchor="middle">
+                    revisa OpenSpec
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="gate-2"
+                  transform="translate(102 438)"
+                >
+                  <circle class="gate-disc" cx="75" cy="52" r="38" />
+                  <text x="75" y="48" class="gate-number">GATE 2</text>
+                  <text x="75" y="62" class="gate-caption">CODE</text>
+                  <text x="75" y="106" class="node-copy" text-anchor="middle">
+                    revisa PR e código
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="gate-3"
+                  transform="translate(102 642)"
+                >
+                  <circle class="gate-disc" cx="75" cy="52" r="38" />
+                  <text x="75" y="48" class="gate-number">GATE 3</text>
+                  <text x="75" y="62" class="gate-caption">MERGE</text>
+                  <text x="75" y="106" class="node-copy" text-anchor="middle">
+                    decide sobre o merge
+                  </text>
+                </g>
+              </g>
+
+              <!-- main agent lane -->
+              <g class="flow-group" data-family="agent">
+                <g
+                  class="flow-node"
+                  data-node="context"
+                  transform="translate(422 130)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="50"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="15"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <circle
+                    cx="21.5"
+                    cy="24.5"
+                    r="4.5"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.2"
+                  />
+                  <path
+                    d="M21.5 20v-2M21.5 29v2M17 24.5h-2M26 24.5h2"
+                    stroke="#675a91"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="21" class="node-code">A0 · DEEP AGENT</text>
+                  <text x="42" y="37" class="node-title">
+                    Contexto Jira + sandbox
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="spec-author"
+                  transform="translate(422 305)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="47"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="14"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M18 18h7v10h-7z M20 20h3 M20 23h3 M20 26h2"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.1"
+                  />
+                  <text x="42" y="20" class="node-code">
+                    A1–A2 · SPEC_AUTHOR
+                  </text>
+                  <text x="42" y="36" class="node-title">
+                    Escreve + auto-revisa OpenSpec
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="spec-adjust"
+                  transform="translate(422 380)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="48"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="14"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M18 24h8 M22 20l4 4-4 4"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.3"
+                  />
+                  <text x="42" y="20" class="node-code">
+                    A3 · SPEC_ADJUSTER
+                  </text>
+                  <text x="42" y="36" class="node-title">
+                    Ajusta spec na mesma branch
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="implement"
+                  transform="translate(422 520)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="54"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="17"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M18 26l3 3 6-7"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.4"
+                  />
+                  <text x="42" y="22" class="node-code">
+                    A4–A5 · CODING_AGENT
+                  </text>
+                  <text x="42" y="39" class="node-title">
+                    Implementa · testa · abre PR
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="code-adjust"
+                  transform="translate(422 650)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="48"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="14"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M18 24h8 M22 20l4 4-4 4"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.3"
+                  />
+                  <text x="42" y="20" class="node-code">
+                    A6 · CODE_ADJUSTER
+                  </text>
+                  <text x="42" y="36" class="node-title">
+                    Lê findings e corrige a mesma PR
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="premerge"
+                  transform="translate(771 520)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="54"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="17"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M17 26l4 4 8-9"
+                    fill="none"
+                    stroke="#675a91"
+                    stroke-width="1.4"
+                  />
+                  <text x="42" y="22" class="node-code">
+                    A7 · OPENSPEC_VERIFIER
+                  </text>
+                  <text x="42" y="39" class="node-title">
+                    Checks finais · archive + docs
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="close"
+                  transform="translate(1140 735)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="50"
+                    rx="10"
+                    fill="#f8f6ff"
+                    stroke="#c0b9dc"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="15"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#ded8f2"
+                  />
+                  <path
+                    d="M17 24h10 M17 28h7"
+                    stroke="#675a91"
+                    stroke-width="1.3"
+                  />
+                  <text x="42" y="21" class="node-code">
+                    A8 · ARCHIVE_AGENT
+                  </text>
+                  <text x="42" y="37" class="node-title">
+                    Confirma merge e fecha
+                  </text>
+                </g>
+              </g>
+
+              <!-- reviewer lane -->
+              <g class="flow-group" data-family="reviewer">
+                <g
+                  class="flow-node"
+                  data-node="reviewer"
+                  transform="translate(927 130)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="112"
+                    height="55"
+                    rx="10"
+                    fill="#f4f8fc"
+                    stroke="#b7c6d9"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="18"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#dce6f1"
+                  />
+                  <path
+                    d="M17 22h9v9h-9z M19 20v3 M24 20v3 M19 26h5"
+                    fill="none"
+                    stroke="#546e8f"
+                    stroke-width="1.15"
+                  />
+                  <text x="42" y="22" class="node-code">V0</text>
+                  <text x="42" y="37" class="node-title">Review da PR</text>
+                  <text x="42" y="49" class="node-copy">PR real · diff</text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="review-result"
+                  transform="translate(927 225)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="112"
+                    height="50"
+                    rx="10"
+                    fill="#f4f8fc"
+                    stroke="#b7c6d9"
+                  />
+                  <circle cx="25" cy="250" r="0" />
+                  <text x="15" y="21" class="node-code">V1 · RESULTADO</text>
+                  <text x="15" y="38" class="node-title">PASS / changes</text>
+                  <text x="15" y="49" class="node-copy">
+                    findings acionáveis
+                  </text>
+                </g>
+              </g>
+
+              <!-- deterministic lane -->
+              <g class="flow-group" data-family="system">
+                <g
+                  class="flow-node"
+                  data-node="backlog"
+                  transform="translate(1140 130)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="50"
+                    rx="10"
+                    fill="#f4faf7"
+                    stroke="#b8d0c6"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="15"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#d7e9e0"
+                  />
+                  <path
+                    d="M18 19h7l3 3v8h-10z M20 24h5 M20 27h4"
+                    fill="none"
+                    stroke="#4b7867"
+                    stroke-width="1.1"
+                  />
+                  <text x="42" y="21" class="node-code">J0–P1 · POLLER</text>
+                  <text x="42" y="37" class="node-title">
+                    BACKLOG · tick · retoma T
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="spec-gate"
+                  transform="translate(1140 205)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="62"
+                    rx="10"
+                    fill="#f4faf7"
+                    stroke="#b8d0c6"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="21"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#d7e9e0"
+                  />
+                  <path
+                    d="M18 26h7 M18 30h7 M18 34h5"
+                    stroke="#4b7867"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="25" class="node-code">G1 · PARKED</text>
+                  <text x="42" y="42" class="node-title">
+                    Em Revisão de Spec
+                  </text>
+                  <text x="42" y="55" class="node-copy">
+                    run encerra · espera pessoa
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="github-pr"
+                  transform="translate(1140 322)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="43"
+                    rx="10"
+                    fill="#f7f5f8"
+                    stroke="#c9c2ce"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="12"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#e5e1e8"
+                  />
+                  <path
+                    d="M18 20h8 M18 24h8 M18 28h5"
+                    stroke="#6f6673"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="19" class="node-code">GH0–GH1</text>
+                  <text x="42" y="34" class="node-title">
+                    Branch + mesma PR
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="code-gate"
+                  transform="translate(1140 405)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="62"
+                    rx="10"
+                    fill="#f4faf7"
+                    stroke="#b8d0c6"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="21"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#d7e9e0"
+                  />
+                  <path
+                    d="M18 26h7 M18 30h7 M18 34h5"
+                    stroke="#4b7867"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="25" class="node-code">G2 · PARKED</text>
+                  <text x="42" y="42" class="node-title">Em Code Review</text>
+                  <text x="42" y="55" class="node-copy">
+                    reviewer PASS · pessoa decide
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="merge-gate"
+                  transform="translate(1140 517)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="62"
+                    rx="10"
+                    fill="#f4faf7"
+                    stroke="#b8d0c6"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="21"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#d7e9e0"
+                  />
+                  <path
+                    d="M18 26h7 M18 30h7 M18 34h5"
+                    stroke="#4b7867"
+                    stroke-width="1.2"
+                  />
+                  <text x="42" y="25" class="node-code">G3 · PARKED</text>
+                  <text x="42" y="42" class="node-title">Em Merge</text>
+                  <text x="42" y="55" class="node-copy">
+                    archive + docs no diff da PR
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="merge"
+                  transform="translate(1140 635)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="54"
+                    rx="10"
+                    fill="#f4faf7"
+                    stroke="#b8d0c6"
+                  />
+                  <rect
+                    class="icon-square"
+                    x="12"
+                    y="17"
+                    width="19"
+                    height="19"
+                    rx="5"
+                    fill="#d7e9e0"
+                  />
+                  <path
+                    d="M17 25l4 4 8-9"
+                    fill="none"
+                    stroke="#4b7867"
+                    stroke-width="1.4"
+                  />
+                  <text x="42" y="22" class="node-code">GH2–GH3 · HUMANO</text>
+                  <text x="42" y="39" class="node-title">
+                    Mergeado · API confirma
+                  </text>
+                </g>
+                <g
+                  class="flow-node"
+                  data-node="done"
+                  transform="translate(1140 795)"
+                >
+                  <rect
+                    class="node-plate"
+                    width="222"
+                    height="42"
+                    rx="10"
+                    fill="#edf7f1"
+                    stroke="#9fc6b3"
+                  />
+                  <circle cx="24" cy="21" r="9" fill="#cae3d5" />
+                  <path
+                    d="M20 21l3 3 5-6"
+                    fill="none"
+                    stroke="#477a63"
+                    stroke-width="1.3"
+                  />
+                  <text x="42" y="19" class="node-code">JD · TERMINAL</text>
+                  <text x="42" y="33" class="node-title">
+                    Done · fechamento administrativo
+                  </text>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <div class="legend" aria-label="Legenda">
+            <span class="legend-item"
+              ><i class="legend-mark human"></i>Humano</span
+            >
+            <span class="legend-item"
+              ><i class="legend-mark agent"></i>Agente principal</span
+            >
+            <span class="legend-item"
+              ><i class="legend-mark reviewer"></i>Reviewer graph</span
+            >
+            <span class="legend-item"
+              ><i class="legend-mark system"></i>Sistema determinístico</span
+            >
+            <span class="legend-item"
+              ><i class="legend-mark gate"></i>Gate / decisão</span
+            >
+          </div>
+        </section>
+
+        <aside class="conditions" aria-labelledby="conditions-title">
+          <div class="conditions-header">
+            <h2 id="conditions-title">Condições de parada</h2>
+            <span>GUARDRAILS</span>
+          </div>
+          <p>
+            Um run não espera pela pessoa. Ele estaciona, encerra e deixa o
+            poller retomar a mesma thread após uma mudança real.
+          </p>
+          <div class="condition">
+            <div class="condition-top">
+              <strong>Spec cycles</strong
+              ><span class="condition-value">≈ 3 / orientação</span>
+            </div>
+            <p>
+              Sem resolver gaps, estaciona no Gate 1 com cada decisão aberta
+              descrita.
+            </p>
+            <div class="bar"><i style="width: 68%"></i></div>
+          </div>
+          <div class="condition">
+            <div class="condition-top">
+              <strong>Harness report</strong
+              ><span class="condition-value">obrigatório</span>
+            </div>
+            <p>
+              Sem comando de teste seguro: <b>HARNESS BLOCKED</b>. Não edita nem
+              avança.
+            </p>
+            <div class="bar gold"><i style="width: 34%"></i></div>
+          </div>
+          <div class="condition">
+            <div class="condition-top">
+              <strong>PR real + reviewer</strong
+              ><span class="condition-value">PASS</span>
+            </div>
+            <p>
+              CHANGES_REQUIRED volta à implementação. Falha de chamada nunca é
+              aprovação.
+            </p>
+            <div class="bar green"><i style="width: 81%"></i></div>
+          </div>
+          <div class="condition">
+            <div class="condition-top">
+              <strong>Archive + docs</strong
+              ><span class="condition-value">pré-merge</span>
+            </div>
+            <p>
+              Entram na mesma branch e na mesma PR antes de Em Merge. Nada de PR
+              pós-merge.
+            </p>
+            <div class="bar"><i style="width: 74%"></i></div>
+          </div>
+          <div class="condition">
+            <div class="condition-top">
+              <strong>Merge confirmado</strong
+              ><span class="condition-value">state=merged</span>
+            </div>
+            <p>
+              Sem confirmação da API, permanece em Mergeado. Não há encerramento
+              por suposição.
+            </p>
+            <div class="bar green"><i style="width: 100%"></i></div>
+          </div>
+          <div class="stop-note">
+            <b>Regra de segurança</b>O agente não aprova spec ou código, não faz
+            merge e não inventa uma coluna de fallback. Gaps ficam visíveis no
+            gate normal.
+          </div>
+        </aside>
+      </section>
+
+      <section class="status-section" aria-labelledby="status-title">
+        <div class="status-head">
+          <h2 id="status-title">Os 11 status do board</h2>
+          <p>
+            Responsabilidade de transição · os nomes são os enviados à API Jira
+          </p>
+        </div>
+        <div class="status-grid">
+          <div class="status">
+            <span class="status-no">01</span
+            ><span class="status-name">BACKLOG</span
+            ><span class="status-owner">pessoa / integração</span>
+          </div>
+          <div class="status">
+            <span class="status-no">02</span
+            ><span class="status-name">In Progress</span
+            ><span class="status-owner">agente</span>
+          </div>
+          <div class="status">
+            <span class="status-no">03</span
+            ><span class="status-name">Em Revisão de Spec</span
+            ><span class="status-owner">agente estaciona</span>
+          </div>
+          <div class="status">
+            <span class="status-no">04</span
+            ><span class="status-name">Spec Aprovada</span
+            ><span class="status-owner">pessoa</span>
+          </div>
+          <div class="status">
+            <span class="status-no">05</span
+            ><span class="status-name">Ajustar Spec</span
+            ><span class="status-owner">pessoa</span>
+          </div>
+          <div class="status">
+            <span class="status-no">06</span
+            ><span class="status-name">Em Code Review</span
+            ><span class="status-owner">agente estaciona</span>
+          </div>
+          <div class="status">
+            <span class="status-no">07</span
+            ><span class="status-name">Code Review Aprovado</span
+            ><span class="status-owner">pessoa</span>
+          </div>
+          <div class="status">
+            <span class="status-no">08</span
+            ><span class="status-name">Ajustar Code</span
+            ><span class="status-owner">pessoa</span>
+          </div>
+          <div class="status">
+            <span class="status-no">09</span
+            ><span class="status-name">Em Merge</span
+            ><span class="status-owner">agente estaciona</span>
+          </div>
+          <div class="status">
+            <span class="status-no">10</span
+            ><span class="status-name">Mergeado</span
+            ><span class="status-owner">pessoa</span>
+          </div>
+          <div class="status">
+            <span class="status-no">11</span
+            ><span class="status-name">Done</span
+            ><span class="status-owner">agente</span>
+          </div>
+        </div>
+      </section>
+      <div class="footnote">
+        <span
+          >Leitura: sólidos = passagem · tracejados = decisão, estacionamento ou
+          loop</span
+        >
+        <span
+          >O reviewer graph não move Jira · o poller não interpreta
+          requisitos</span
+        >
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        const viewport = document.getElementById("viewport");
+        const svg = document.getElementById("flowSvg");
+        const readout = document.getElementById("zoomReadout");
+        let scale = 1;
+        let tx = 0;
+        let ty = 0;
+        let dragging = false;
+        let startX = 0;
+        let startY = 0;
+        let originX = 0;
+        let originY = 0;
+
+        function applyView() {
+          svg.style.transformOrigin = "0 0";
+          svg.style.transform =
+            "translate(" + tx + "px," + ty + "px) scale(" + scale + ")";
+          readout.textContent = Math.round(scale * 100) + "%";
+        }
+        function setZoom(next, anchorX, anchorY) {
+          const old = scale;
+          scale = Math.max(0.68, Math.min(1.75, next));
+          if (anchorX !== undefined) {
+            tx = anchorX - (anchorX - tx) * (scale / old);
+            ty = anchorY - (anchorY - ty) * (scale / old);
+          }
+          applyView();
+        }
+        document
+          .getElementById("zoomIn")
+          .addEventListener("click", function () {
+            setZoom(scale + 0.12);
+          });
+        document
+          .getElementById("zoomOut")
+          .addEventListener("click", function () {
+            setZoom(scale - 0.12);
+          });
+        document.getElementById("reset").addEventListener("click", function () {
+          scale = 1;
+          tx = 0;
+          ty = 0;
+          applyView();
+        });
+        viewport.addEventListener(
+          "wheel",
+          function (event) {
+            event.preventDefault();
+            const rect = viewport.getBoundingClientRect();
+            setZoom(
+              scale + (event.deltaY < 0 ? 0.1 : -0.1),
+              event.clientX - rect.left,
+              event.clientY - rect.top,
+            );
+          },
+          { passive: false },
+        );
+        viewport.addEventListener("pointerdown", function (event) {
+          if (event.target.closest(".flow-node")) return;
+          dragging = true;
+          viewport.setPointerCapture(event.pointerId);
+          startX = event.clientX;
+          startY = event.clientY;
+          originX = tx;
+          originY = ty;
+        });
+        viewport.addEventListener("pointermove", function (event) {
+          if (!dragging) return;
+          tx = originX + event.clientX - startX;
+          ty = originY + event.clientY - startY;
+          applyView();
+        });
+        viewport.addEventListener("pointerup", function () {
+          dragging = false;
+        });
+        viewport.addEventListener("pointercancel", function () {
+          dragging = false;
+        });
+
+        const nodes = Array.from(document.querySelectorAll(".flow-node"));
+        nodes.forEach(function (node) {
+          node.addEventListener("click", function (event) {
+            event.stopPropagation();
+            const family = node.closest(".flow-group")?.dataset.family;
+            nodes.forEach(function (other) {
+              other.classList.toggle("selected", other === node);
+              other
+                .closest(".flow-group")
+                ?.classList.toggle(
+                  "dimmed",
+                  Boolean(family) &&
+                    other !== node &&
+                    other.closest(".flow-group")?.dataset.family !== family,
+                );
+            });
+          });
+        });
+        viewport.addEventListener("click", function () {
+          nodes.forEach(function (node) {
+            node.classList.remove("selected");
+          });
+          document.querySelectorAll(".flow-group").forEach(function (group) {
+            group.classList.remove("dimmed");
+          });
+        });
+        applyView();
+      })();
+    </script>
+  </body>
+</html>

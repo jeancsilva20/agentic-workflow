@@ -2,9 +2,29 @@ uploads = []
 generated = []
 
 [[outputs]]
-id = "6szPTWnGgLaLGmA1YeUJX"
-uri = "file://docs/RELATORIO_FLUXO_ATUAL_JIRA.md"
+id = "QoC57im0hM1Y75SBQVtnM"
+uri = "file://artifacts/jira-flow-diagram/index.html"
 type = "text"
-title = "Relatório do fluxo atual do Jira"
-description = "Diagnóstico do shadow mode e descrição completa do fluxo Open SWE/Jira, incluindo o caso SSAI-88."
-logical_id = "552c930f-02cd-4ad8-94fe-b46a1230410b"
+title = "Abrir página — Diagrama visual do fluxo Jira"
+description = "Clique no cartão para abrir a página HTML interativa no navegador."
+logical_id = "1d776b54-ec72-4523-90da-6be7e2553b29"
+content_hash = "sha256:654c529c6fcd3b6691e86e71e304dd129845e116f0eedebf5659aa313115c4dc"
+size = 58664
+mtime_ms = 1788462075272
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:60816f34-ae99-45c4-9dc1-34c574daec9b/1d776b54-ec72-4523-90da-6be7e2553b29/5a4afbeb-bf08-4198-b48a-3fa313b1224b"
+storage_version_token = "1788462126949248"
+content_type = "text/html"
+
+[[outputs]]
+id = "QoC57im0hM1Y75SBQVtnM"
+uri = "file://artifacts/jira-flow-diagram/index.html"
+type = "text"
+title = "Abrir página — Diagrama visual do fluxo Jira"
+description = "Clique no cartão para abrir a página HTML interativa no navegador."
+logical_id = "1d776b54-ec72-4523-90da-6be7e2553b29"
+content_hash = "sha256:654c529c6fcd3b6691e86e71e304dd129845e116f0eedebf5659aa313115c4dc"
+size = 58664
+mtime_ms = 1788462075272
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:60816f34-ae99-45c4-9dc1-34c574daec9b/1d776b54-ec72-4523-90da-6be7e2553b29/5a4afbeb-bf08-4198-b48a-3fa313b1224b"
+storage_version_token = "1788462126949248"
+content_type = "text/html"
