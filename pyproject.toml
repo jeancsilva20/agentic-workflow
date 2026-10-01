@@ -2,7 +2,7 @@
 # `deepagents<0.7.0`, but 0.7.0 keeps the sandbox API backward compatible. Its e2b
 # dependency also caps wcmatch<11.0 while deepagents requires wcmatch>=11.0, so
 # override both transitive bounds until langchain-e2b publishes compatible metadata.
-tool.uv.override-dependencies = ["deepagents==0.7.1", "wcmatch>=11.0"]
+tool.uv.override-dependencies = ["deepagents==0.7.19", "wcmatch>=11.0"]
 [project]
 name = "open-swe-agent"
 version = "0.1.0"
@@ -11,7 +11,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 dependencies = [
-    "deepagents==0.7.1",
+    "deepagents==0.7.19",
     "fastapi>=0.141.1",
     "uvicorn>=0.52.0",
     "httpx>=0.28.1",
