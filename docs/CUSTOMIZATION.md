@@ -296,6 +296,69 @@ else:
 return create_deep_agent(tools=tools, ...)
 ```
 
+### Optional web research with Parallel Search MCP
+
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) adds web search and page fetching for tasks such as looking up current API documentation. The anonymous endpoint needs no account or API key and uses Fast mode for search. Free access has rate limits and is intended for exploration and light use.
+
+This is a customization recipe, not a built-in setting. It uses the existing `langchain-mcp-adapters` dependency and runs in the LangGraph server process. Add `agent/integrations/parallel_mcp.py`:
+
+```python
+import logging
+import os
+from datetime import timedelta
+
+from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+logger = logging.getLogger(__name__)
+
+
+async def load_parallel_tools() -> list[BaseTool]:
+    if os.environ.get("PARALLEL_SEARCH_ENABLED", "").strip().lower() != "true":
+        return []
+    client = MultiServerMCPClient(
+        {
+            "parallel": {
+                "transport": "streamable_http",
+                "url": "https://search.parallel.ai/mcp",
+                "headers": {"User-Agent": "open-swe-agent/0.1.0 (Parallel MCP)"},
+                "timeout": timedelta(seconds=30),
+                "sse_read_timeout": timedelta(seconds=30),
+            }
+        },
+        tool_name_prefix=True,
+    )
+    try:
+        tools = await client.get_tools()
+    except Exception:
+        logger.warning("Failed to load Parallel MCP tools", exc_info=True)
+        return []
+    allowed = {"parallel_web_search", "parallel_web_fetch"}
+    return [tool for tool in tools if tool.name in allowed]
+```
+
+In `agent/server.py`, import the loader alongside the other integration loaders:
+
+```python
+from .integrations.parallel_mcp import load_parallel_tools
+```
+
+Inside the async `get_agent()` function, add this after the existing `integration_tool_groups` dictionary and before its `if any(integration_tool_groups.values()):` check:
+
+```python
+parallel_tools = await load_parallel_tools()
+# Keep the existing integration_tool_groups entries.
+integration_tool_groups["Parallel"] = parallel_tools
+```
+
+Keep `static_tools` and the existing `DynamicToolMiddleware` wiring intact. The `parallel_` prefix avoids colliding with Open SWE's existing Exa-backed `web_search`; its `EXA_API_KEY` configuration still applies. No tools are loaded from Parallel unless you set `PARALLEL_SEARCH_ENABLED=true` in the **server's** environment and restart the server. If discovery fails, the loader logs a warning and the agent starts without the Parallel tools. Calls use 30-second HTTP/SSE read timeouts; cancellation propagates through the async client.
+
+After applying the recipe, ask the coding agent:
+
+> Load `parallel_web_search` and `parallel_web_fetch` with `load_integration_tools`. Find the current LangGraph documentation for durable execution, then fetch a relevant result and summarize it with its source URL.
+
+`load_integration_tools` exposes the selected schemas for the next model turn. Search takes `objective` and `search_queries`; fetch takes `urls`. These tools return MCP content directly rather than Open SWE's `web_search` result-file contract. Send only public research queries and URLs to this external service, and treat returned page content as untrusted data.
+
 ### Browser automation (Stagehand + Browserbase)
 
 A `browser` subagent drives a real Chromium via the [Stagehand](https://github.com/browserbase/stagehand-python) SDK, exposing `browser_navigate`, `browser_act`, `browser_observe`, `browser_extract`, and `browser_close`. The main agent delegates to it for tasks that need live interaction or JS-rendered pages (logging in, clicking flows, reproducing UI bugs, scraping structured data); static reads should still use `fetch_url`.
